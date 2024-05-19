@@ -128,7 +128,7 @@ plasma_num_pre_miss_sum = plasma_num_pre_miss %>%
 plasma_try_de_result = fread("./plasmaData/DIA_lib_try_result/frapipe_analyst/DE_results.csv")
 plasma_semi_de_result = fread("./plasmaData/DIA_lib_semi_result/fragpipe_analyst/DE_results.csv")
 plasma_de_result = list("Tryptic" = plasma_try_de_result, "Semi-Tryptic" = plasma_semi_de_result)
-write.xlsx(plasma_de_result, file = './supplements/table_s3.xls')
+write.xlsx(plasma_de_result, file = './supplements/table_s3.xlsx')
 
 plasma_try_de_result_sig = plasma_try_de_result %>%
   filter(significant == TRUE)

@@ -265,7 +265,7 @@ csf_dia_lib_tryp_semi_num = left_join(csf_dia_lib_semi_psm_semi_pep_allterm_num,
 csf_dia_lib_tryp_semi_num$ratio = csf_dia_lib_tryp_semi_num$semi_num/csf_dia_lib_tryp_semi_num$tryp_num
 colnames(csf_dia_lib_tryp_semi_num)[1] = "Entry"
 csf_dia_lib_tryp_semi_num_out = left_join(csf_dia_lib_tryp_semi_num, hum_uniprot, by="Entry")
-write.table(csf_dia_lib_tryp_semi_num_out, "./supplements/table_s1.csv", row.names = F, quote = F, sep = "\t")
+write.xlsx(csf_dia_lib_tryp_semi_num_out, file = './supplements/table_s1.xlsx')
 
 ### Signal peptides
 csf_dia_lib_semi_psm_semi_pep_allterm$preStart = csf_dia_lib_semi_psm_semi_pep_allterm$`Protein Start` - 1
@@ -281,7 +281,7 @@ csf_dia_lib_semi_psm_semi_pep_sig = csf_dia_lib_semi_psm_semi_pep_allterm %>%
 csf_dia_lib_semi_psm_semi_pep_sig_pro = csf_dia_lib_semi_psm_semi_pep_sig %>%
   group_by(`Protein ID`) %>%
   summarise(n=n())
-write.table(csf_signal_result, "./supplements/table_s2.csv", row.names = F, quote = F, sep = "\t")
+write.xlsx(csf_signal_result, file = './supplements/table_s2.xlsx')
 
 
 # Function to assign rows to peptides
