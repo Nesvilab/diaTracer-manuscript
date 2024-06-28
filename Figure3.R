@@ -3,6 +3,7 @@ library(data.table)
 library(ComplexHeatmap)
 library(ggrepel)
 library(openxlsx)
+library(protti)
 
 ########################
 ### ID numbers plot
@@ -221,5 +222,56 @@ plasma_plot = ggarrange(ggarrange(plasma_num_pro_miss_plot, plasma_num_pre_miss_
 plasma_plot
 ggsave("./figures/Figure3.pdf", plasma_plot, width=5.3, height = 4, units = c("in"), dpi=400)
 
+### Supplement
+semi_precursor_de_report = fread("./plasmaData/DIA_lib_semi_result/fragpipe_analyst/Precursor_DE_results.csv")
+semi_precursor_de_report_AKT2 = semi_precursor_de_report %>%
+  filter(`Gene Name` %in% c("AKT2")) %>%
+  filter(num_NAs <36)
+semi_precursor_de_report_H2AX = semi_precursor_de_report %>%
+  filter(`Gene Name` %in% c("H2AX")) %>%
+  filter(num_NAs <36)
+
+semi_precursor_psm = fread("./plasmaData/DIA_lib_semi_result/psm.tsv")
+semi_precursor_psm_used = semi_precursor_psm %>%
+  distinct(Peptide, `Protein Start`, `Protein End`, Gene, `Protein ID`, `Prev AA`)
+semi_precursor_psm_used$Index = paste(semi_precursor_psm_used$`Protein ID`, semi_precursor_psm_used$Peptide, sep = "_")
+semi_precursor_psm_used$semi = ifelse(semi_precursor_psm_used$`Prev AA` %in% c("R", "K"), F, T)
+
+semi_precursor_de_report_AKT2_index = left_join(semi_precursor_de_report_AKT2, semi_precursor_psm_used, by = "Index")
+semi_precursor_de_report_AKT2_index$protein_length = max(semi_precursor_de_report_AKT2_index$`Protein End`) + 20
+semi_precursor_de_report_H2AX_index = left_join(semi_precursor_de_report_H2AX, semi_precursor_psm_used, by = "Index")
+semi_precursor_de_report_H2AX_index$protein_length = max(semi_precursor_de_report_H2AX_index$`Protein End`) + 20
+
+### Add the wood's plot reference
+semi_precursor_de_report_AKT2_woods = woods_plot(
+  data = semi_precursor_de_report_AKT2_index,
+  fold_change = `cancer_vs_control_log2 fold change`,
+  start_position = `Protein Start`,
+  end_position = `Protein End`,
+  protein_length = protein_length,
+  protein_id = Gene,
+  colouring = `cancer_vs_control_p.val`,
+  highlight = semi
+)
+pdf("./supplements/AKT2_woods.pdf", width=7, height = 5)
+semi_precursor_de_report_AKT2_woods
+dev.off()
+
+
+semi_precursor_de_report_H2AX_woods = woods_plot(
+  data = semi_precursor_de_report_H2AX_index,
+  fold_change = `cancer_vs_control_log2 fold change`,
+  start_position = `Protein Start`,
+  end_position = `Protein End`,
+  protein_length = protein_length,
+  protein_id = Gene,
+  colouring = `cancer_vs_control_p.val`,
+  highlight = semi
+)
+pdf("./supplements/H2AX_woods.pdf", width=7, height = 5)
+semi_precursor_de_report_H2AX_woods
+dev.off()
+
+## Manually re-assign the star position
 
 

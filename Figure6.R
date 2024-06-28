@@ -3,7 +3,6 @@ library(data.table)
 library(ComplexHeatmap)
 library(psych)
 library(plotly)
-library(VennDiagram) 
 library(eulerr)
 library(ggrepel)
 

@@ -1,6 +1,9 @@
 library(tidyverse)
 library(data.table)
 library(ggpubr)
+library(ggpmisc)
+library(GGally)
+library(ggplot2)
 
 get_mod_pos = function(diann_pr, frag_pep, pep_max){
   diann_pr = diann_pr %>%
@@ -109,6 +112,15 @@ get_strip_pep = function(diann_pr, pep_max){
 
 }
 
+get_strip_pep_spec = function(spec_report){
+  spec_report_strip_pep = spec_report %>%
+    filter(str_detect(`EG.ModifiedPeptide`, "Phospho")) %>%
+    distinct(`PEP.StrippedSequence`)
+  
+  return(nrow(spec_report_strip_pep))
+  
+}
+
 phospho_7min_mod_pep = fread("./phosphoData/7min_result/diann-output/modified_sequence_maxlfq.tsv")
 phospho_7min_pr = fread("./phosphoData/7min_result/diann-output/report.pr_matrix.tsv") 
 phospho_7min_pr_pass = phospho_7min_pr %>%
@@ -179,18 +191,82 @@ phos_strip_pep_num = c(get_strip_pep(phospho_7min_pr, phospho_7min_mod_pep),
 gradient_list = c("7", "10", "15", "21", "30", "60")
 phos_strip_pep_num_plot_data = data.frame(gradient_list, phos_strip_pep_num)
 phos_strip_pep_num_plot_data$small_phos_strip_pep_num = phos_strip_pep_num_plot_data$phos_strip_pep_num/1000
-phos_strip_pep_num_plot = ggplot(phos_strip_pep_num_plot_data, aes(x=reorder(gradient_list, small_phos_strip_pep_num), y=small_phos_strip_pep_num)) +
-  geom_bar(stat="identity", fill="#D94800", color="black", size=0.05, width = 0.8) +
-  ylab("# Phosphopeptide Sequence\n(x1000)") +
+
+spec_7_min_report = fread("./phosphoData/Spectronaut analysis files/20240305_112743_phospho_7min_Report.tsv")
+spec_10_min_report = fread("./phosphoData/Spectronaut analysis files/20240305_153512_phospho_10min_Report.tsv")
+spec_15_min_report = fread("./phosphoData/Spectronaut analysis files/20240305_153519_phospho_15min_Report.tsv")
+spec_21_min_report = fread("./phosphoData/Spectronaut analysis files/20240305_153525_Phospho_21min_Report.tsv")
+spec_30_min_report = fread("./phosphoData/Spectronaut analysis files/20240305_153530_Phospho_30min_Report.tsv")
+spec_60_min_report = fread("./phosphoData/Spectronaut analysis files/20240226_113655_Phospho_60min_Report.tsv")
+
+phos_strip_pep_num_spec = c(get_strip_pep_spec(spec_7_min_report),
+                            get_strip_pep_spec(spec_10_min_report),
+                            get_strip_pep_spec(spec_15_min_report),
+                            get_strip_pep_spec(spec_21_min_report),
+                            get_strip_pep_spec(spec_30_min_report),
+                            get_strip_pep_spec(spec_60_min_report))
+phos_strip_pep_num_plot_data_spec = data.frame(gradient_list, `Oliinyk et al.`= phos_strip_pep_num_spec)
+colnames(phos_strip_pep_num_plot_data)[2] = "FP-diaTracer"
+phos_strip_pep_num_plot_data_spec_Frag = inner_join(phos_strip_pep_num_plot_data, phos_strip_pep_num_plot_data_spec, by = "gradient_list")
+phos_strip_pep_num_plot_data_spec_Frag$small_phos_strip_pep_num = NULL
+phos_strip_pep_num_plot_data_spec_Frag_gather = gather(phos_strip_pep_num_plot_data_spec_Frag, 2:3, key="method", value="Num")
+phos_strip_pep_num_plot_data_spec_Frag_gather$small_sum = phos_strip_pep_num_plot_data_spec_Frag_gather$Num/1000
+
+phos_sites_num = c(nrow(phospho_7min_mod_sites_uni),
+                   nrow(phospho_10min_mod_sites_uni),
+                   nrow(phospho_15min_mod_sites_uni),
+                   nrow(phospho_21min_mod_sites_uni),
+                   nrow(phospho_30min_mod_sites_uni),
+                   nrow(phospho_60min_mod_sites_uni))
+phos_sites_num_plot_data = data.frame(gradient_list, phos_sites_num)
+phos_sites_num_plot_data$small_phos_sites_num = phos_sites_num_plot_data$phos_sites_num/1000
+phos_sites_num_plot_data$method = "FP-diaTracer"
+
+phos_strip_pep_num_spec_Frag_plot = ggplot() +
+  geom_bar(data=phos_strip_pep_num_plot_data_spec_Frag_gather, aes(x=reorder(gradient_list, Num), y=small_sum, fill=method), stat="identity", color="black", size=0.05, width = 0.8, position=position_dodge()) +
+  ylab("#Phosphopeptide Sequence \n(X1000)") +
   xlab("Gradient (min)") +
   theme_light() +
-  scale_y_continuous(expand = c(0.01, 0)) +
+  scale_fill_manual(values = c("#1F77B4", "#FF7F0E"))+
   theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
         axis.text.y = element_text(size = 5),
         axis.title = element_text(size = 5),
         panel.border = element_blank(), panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05))
-phos_strip_pep_num_plot
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
+        legend.title = element_text(size=5, face="bold"),
+        legend.text = element_text(size = 5),
+        legend.key.size = unit(0.2, "cm"),
+        legend.position = c(.18, .9))
+phos_strip_pep_num_spec_Frag_plot
+
+# intensity comp
+phospho_7min_pr_rep1_2 = phospho_7min_pr %>%
+  filter(!is.na(`STY:79.96633`)) %>%
+  filter(`STY:79.96633 Best Localization` >=0.75)
+phospho_7min_pr_rep1_2 = phospho_7min_pr_rep1_2[,11:14]
+colnames(phospho_7min_pr_rep1_2) = c("Rep 1", "Rep 4", "Rep 3", "Rep 2")
+phospho_7min_pr_rep1_2 = na.omit(phospho_7min_pr_rep1_2)
+phospho_7min_pr_rep1_2$`Rep 1` = log10(phospho_7min_pr_rep1_2$`Rep 1`)
+phospho_7min_pr_rep1_2$`Rep 4` = log10(phospho_7min_pr_rep1_2$`Rep 4`)
+phospho_7min_pr_rep1_2$`Rep 3` = log10(phospho_7min_pr_rep1_2$`Rep 3`)
+phospho_7min_pr_rep1_2$`Rep 2` = log10(phospho_7min_pr_rep1_2$`Rep 2`)
+phospho_7min_int_cor_plot = ggpairs(phospho_7min_pr_rep1_2, 
+        upper = list(method="p", continuous = wrap('cor', size = 2, stars = F)),
+        lower = list(continuous = wrap("points", size=0.03, alpha = 0.4),
+                     combo = wrap("dot", alpha = 0.4, size=0.03)),
+        diag = list(continuous = "densityDiag", size=0.2))+ 
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
+        axis.text.y = element_text(size = 5),
+        axis.title = element_text(size = 5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black", size = 0.05),
+        strip.text = element_text(
+          size = 5, margin = margin(0,0,0,0, "cm")))
+pdf("./figures/Figure5b.pdf", width=2.7, height = 2)
+phospho_7min_int_cor_plot
+dev.off()
 
 # b. Sites num
 phos_sites_num = c(nrow(phospho_7min_mod_sites_uni),
@@ -213,56 +289,11 @@ phos_sites_num_plot = ggplot(phos_sites_num_plot_data, aes(x=reorder(gradient_li
         panel.border = element_blank(), panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05))
 
-bind_plot = ggarrange(phos_strip_pep_num_plot, phos_sites_num_plot, widths = c(2.2, 2.2),
-                                ncol = 2, nrow = 1, align="h", labels = c("a", "b"), font.label = list(size = 10))
-ggsave("./figures/Figure5part.pdf", bind_plot, width=5.3, height = 2, units = c("in"), dpi=400)
+bind_plot = ggarrange(phos_strip_pep_num_spec_Frag_plot, widths = c(2.2),
+                                ncol = 1, nrow = 1, align="h", labels = c("a"), font.label = list(size = 10))
+ggsave("./figures/Figure5a.pdf", bind_plot, width=2.5, height = 2, units = c("in"), dpi=400)
 
 ### Assemble all figures using AI
-
-# comparison with spectronaut
-get_strip_pep_spec = function(spec_report){
-  spec_report_strip_pep = spec_report %>%
-    filter(str_detect(`EG.ModifiedPeptide`, "Phospho")) %>%
-    distinct(`PEP.StrippedSequence`)
-  
-  return(nrow(spec_report_strip_pep))
-  
-}
-spec_7_min_report = fread("./phosphoData/Spectronaut analysis files/20240305_112743_phospho_7min_Report.tsv")
-spec_10_min_report = fread("./phosphoData/Spectronaut analysis files/20240305_153512_phospho_10min_Report.tsv")
-spec_15_min_report = fread("./phosphoData/Spectronaut analysis files/20240305_153519_phospho_15min_Report.tsv")
-spec_21_min_report = fread("./phosphoData/Spectronaut analysis files/20240305_153525_Phospho_21min_Report.tsv")
-spec_30_min_report = fread("./phosphoData/Spectronaut analysis files/20240305_153530_Phospho_30min_Report.tsv")
-spec_60_min_report = fread("./phosphoData/Spectronaut analysis files/20240226_113655_Phospho_60min_Report.tsv")
-
-phos_strip_pep_num_spec = c(get_strip_pep_spec(spec_7_min_report),
-                       get_strip_pep_spec(spec_10_min_report),
-                       get_strip_pep_spec(spec_15_min_report),
-                       get_strip_pep_spec(spec_21_min_report),
-                       get_strip_pep_spec(spec_30_min_report),
-                       get_strip_pep_spec(spec_60_min_report))
-phos_strip_pep_num_plot_data_spec = data.frame(gradient_list, `Spectronaut 16`= phos_strip_pep_num_spec)
-colnames(phos_strip_pep_num_plot_data)[2] = "FP-diaTracer"
-phos_strip_pep_num_plot_data_spec_Frag = inner_join(phos_strip_pep_num_plot_data, phos_strip_pep_num_plot_data_spec, by = "gradient_list")
-phos_strip_pep_num_plot_data_spec_Frag$small_phos_strip_pep_num = NULL
-phos_strip_pep_num_plot_data_spec_Frag_gather = gather(phos_strip_pep_num_plot_data_spec_Frag, 2:3, key="method", value="Num")
-
-phos_strip_pep_num_spec_Frag_plot = ggplot(phos_strip_pep_num_plot_data_spec_Frag_gather, aes(x=reorder(gradient_list, Num), y=Num, fill=method)) +
-  geom_bar(stat="identity", color="black", size=0.05, width = 0.8, position=position_dodge()) +
-  ylab("#Phosphopeptide Sequence") +
-  xlab("Gradient (min)") +
-  theme_light() +
-  scale_fill_manual(values = c("#1F77B4", "#FF7F0E"))+
-  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
-        axis.text.y = element_text(size = 5),
-        axis.title = element_text(size = 5),
-        panel.border = element_blank(), panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
-        legend.title = element_text(size=5, face="bold"),
-        legend.text = element_text(size = 5),
-        legend.key.size = unit(0.2, "cm"))
-phos_strip_pep_num_spec_Frag_plot
-ggsave("./supplements/phospho_comp_spectranut.pdf", phos_strip_pep_num_spec_Frag_plot, width=3, height = 1.5, units = c("in"), dpi=400)
 
 # Supplement
 phospho_7min_mod_sites_full = get_mod_full_pos(phospho_7min_pr, phospho_7min_pep_table, phospho_7min_mod_pep)
