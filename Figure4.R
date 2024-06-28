@@ -26,7 +26,7 @@ hla_pr_processed_with_seq = inner_join(hla_pr_processed, hla_report, by="V1")
 hla_pr_processed_with_seq$length = str_length(hla_pr_processed_with_seq$stripped_seq)
 
 # a. comparison with spectronaut
-spec_di_report = fread("./HLAData/original_study/Spectronaut_direct/20230612_142629_directDIA_whi40_Report.tsv")
+spec_di_report = fread("./revisionData/HLAData/original_study/Spectronaut_direct/20230612_142629_directDIA_whi40_Report.tsv")
 spec_di_report_pep = spec_di_report%>%
   distinct(PEP.StrippedSequence)
 hla_pr_processed_with_seq_strip_pep = hla_pr_processed_with_seq %>%
@@ -108,17 +108,17 @@ netmhcpan_result_bind_num_plot = ggplot(netmhcpan_result_bind_num, aes(x=MHC, y=
 netmhcpan_result_bind_num_plot
 
 # c. length distribution
-spec_di_netmhcpan = fread("./HLAData/original_study/Spectronaut_direct/spectronaut_netMHCpan_predictions.tsv")
+spec_di_netmhcpan = fread("./revisionData/HLAData/original_study/Spectronaut_direct/spectronaut_netMHCpan_predictions.tsv")
 spec_di_netmhcpan_pass = spec_di_netmhcpan %>%
   filter(Binder != "Non-binder") %>%
   distinct(Peptide)
 
-pan_library_netmhcpan = fread("./HLAData/original_study/pan_library/whi40_pan_netMHCpan_predictions.tsv")
+pan_library_netmhcpan = fread("./revisionData/HLAData/original_study/pan_library/whi40_pan_netMHCpan_predictions.tsv")
 pan_library_netmhcpan_pass = pan_library_netmhcpan %>%
   filter(Binder != "Non-binder") %>%
   distinct(Peptide)
 
-dda_library_netmhcpan = fread("./HLAData/original_study/dda_library/whi40_fragger_netMHCpan_predictions.tsv")
+dda_library_netmhcpan = fread("./revisionData/HLAData/original_study/dda_library/whi40_fragger_netMHCpan_predictions.tsv")
 dda_library_netmhcpan_pass = dda_library_netmhcpan %>%
   filter(Binder != "Non-binder") %>%
   distinct(Peptide)
@@ -176,9 +176,9 @@ length_dist_plot
 
 
 # d.charge distribution
-dda_library_report = fread("./HLAData/original_study/dda_library/whi40_fraggerlib_report.tsv")
-pan_library_report = fread("./HLAData/original_study/pan_library/panlib_report.tsv")
-diaTracer_report = fread("./HLAData/DIA_lib_result/diann-output/report.tsv") %>%
+dda_library_report = fread("./revisionData/HLAData/original_study/dda_library/whi40_fraggerlib_report.tsv")
+pan_library_report = fread("./revisionData/HLAData/original_study/pan_library/panlib_report.tsv")
+diaTracer_report = fread("./revisionData/HLAData/DIA_lib_result/diann-output/report.tsv") %>%
   filter(`Precursor.Id` %in% hla_pr_processed$V1)
 
 spec_di_report_charge = spec_di_report %>%

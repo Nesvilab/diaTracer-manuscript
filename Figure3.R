@@ -223,7 +223,7 @@ plasma_plot
 ggsave("./figures/Figure3.pdf", plasma_plot, width=5.3, height = 4, units = c("in"), dpi=400)
 
 ### Supplement
-semi_precursor_de_report = fread("./plasmaData/DIA_lib_semi_result/fragpipe_analyst/Precursor_DE_results.csv")
+semi_precursor_de_report = fread("./revisionData/plasma/Precursor_DE_results.csv")
 semi_precursor_de_report_AKT2 = semi_precursor_de_report %>%
   filter(`Gene Name` %in% c("AKT2")) %>%
   filter(num_NAs <36)
