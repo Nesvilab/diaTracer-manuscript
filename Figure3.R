@@ -52,16 +52,16 @@ plasma_diann_try_pro_processed = read_maxlfq("./plasmaData/DIA_NN_LF_result/prot
 plasma_dia_try_pro_processed = read_maxlfq("./plasmaData/DIA_lib_try_result/diann-output/protein_maxlfq.tsv")
 plasma_dia_semi_pro_processed = read_maxlfq("./plasmaData/DIA_lib_semi_result/diann-output/protein_maxlfq.tsv")
 
-plasma_diann_try_pro_processed_miss = missing_summarize(plasma_diann_try_pro_processed, "DIA-NN\nlib-free(Tr)")
-plasma_dia_try_pro_processed_miss = missing_summarize(plasma_dia_try_pro_processed, "FP-diaTracer\n(Tr)")
-plasma_dia_semi_pro_processed_miss = missing_summarize(plasma_dia_semi_pro_processed, "FP-diaTracer\n(Semi)")
+plasma_diann_try_pro_processed_miss = missing_summarize(plasma_diann_try_pro_processed, "DIA-NN\nlib-free(tryptic)")
+plasma_dia_try_pro_processed_miss = missing_summarize(plasma_dia_try_pro_processed, "FP-diaTracer\n(tryptic)")
+plasma_dia_semi_pro_processed_miss = missing_summarize(plasma_dia_semi_pro_processed, "FP-diaTracer\n(semi-tryptic)")
 plasma_num_pro_miss = bind_rows(plasma_diann_try_pro_processed_miss) %>%
   bind_rows(plasma_dia_try_pro_processed_miss) %>%
   bind_rows(plasma_dia_semi_pro_processed_miss)
 
 plasma_num_pro_miss$small_id_num = plasma_num_pro_miss$id_num/1000
 plasma_num_pro_miss$id_portion = factor(plasma_num_pro_miss$id_portion, levels = c("<25%", ">25%", ">50%", "100%" ), ordered = TRUE)
-plasma_num_pro_miss$method = factor(plasma_num_pro_miss$method, levels = c("FP-diaTracer\n(Tr)", "FP-diaTracer\n(Semi)", "DIA-NN\nlib-free(Tr)"), ordered = TRUE)
+plasma_num_pro_miss$method = factor(plasma_num_pro_miss$method, levels = c("FP-diaTracer\n(tryptic)", "FP-diaTracer\n(semi-tryptic)", "DIA-NN\nlib-free(tryptic)"), ordered = TRUE)
 plasma_num_pro_miss_plot = ggplot(plasma_num_pro_miss, aes(x=method, y=small_id_num, fill= id_portion)) +
   geom_bar(stat="identity",  color="black", size=0.05, width = 0.8) + 
   scale_fill_brewer(palette="Blues") +
@@ -91,9 +91,9 @@ plasma_dia_try_pre_processed = read_maxlfq("./plasmaData/DIA_lib_try_result/dian
 plasma_dia_semi_pre_processed = read_maxlfq("./plasmaData/DIA_lib_semi_result/diann-output/precursor_maxlfq.tsv")
 plasma_diann_try_pre_processed = read_maxlfq("./plasmaData/DIA_NN_LF_result/precursor_maxlfq.tsv")
 
-plasma_diann_try_pre_processed_miss = missing_summarize(plasma_diann_try_pre_processed, "DIA-NN\nlib-free(Tr)")
-plasma_dia_try_pre_processed_miss = missing_summarize(plasma_dia_try_pre_processed, "FP-diaTracer\n(Tr)")
-plasma_dia_semi_pre_processed_miss = missing_summarize(plasma_dia_semi_pre_processed, "FP-diaTracer\n(Semi)")
+plasma_diann_try_pre_processed_miss = missing_summarize(plasma_diann_try_pre_processed, "DIA-NN\nlib-free(tryptic)")
+plasma_dia_try_pre_processed_miss = missing_summarize(plasma_dia_try_pre_processed, "FP-diaTracer\n(tryptic)")
+plasma_dia_semi_pre_processed_miss = missing_summarize(plasma_dia_semi_pre_processed, "FP-diaTracer\n(semi-tryptic)")
 plasma_num_pre_miss = 
   bind_rows(plasma_diann_try_pre_processed_miss) %>%
   bind_rows(plasma_dia_try_pre_processed_miss) %>%
@@ -101,7 +101,7 @@ plasma_num_pre_miss =
 
 plasma_num_pre_miss$small_id_num = plasma_num_pre_miss$id_num/1000
 plasma_num_pre_miss$id_portion = factor(plasma_num_pre_miss$id_portion, levels = c("<25%", ">25%", ">50%", "100%" ), ordered = TRUE)
-plasma_num_pre_miss$method = factor(plasma_num_pre_miss$method, levels = c("FP-diaTracer\n(Tr)", "FP-diaTracer\n(Semi)", "DIA-NN\nlib-free(Tr)"), ordered = TRUE)
+plasma_num_pre_miss$method = factor(plasma_num_pre_miss$method, levels = c("FP-diaTracer\n(tryptic)", "FP-diaTracer\n(semi-tryptic)", "DIA-NN\nlib-free(tryptic)"), ordered = TRUE)
 plasma_num_pre_miss_plot = ggplot(plasma_num_pre_miss, aes(x=method, y=small_id_num, fill= id_portion)) +
   geom_bar(stat="identity",  color="black", size=0.05, width = 0.8) + 
   scale_fill_brewer(palette="Blues", name="Portion") +
@@ -188,7 +188,7 @@ feature_data_semi$V1 = str_replace_all(feature_data_semi$V1, "P16104", "H2AX")
 feature_data_semi_gather = gather(feature_data_semi, sample_name, quant, 2:41)
 feature_data_semi_gather_con = inner_join(feature_data_semi_gather, plasma_annotation_data, by="sample_name")
 feature_data_semi_gather_con$quant_log = log2(feature_data_semi_gather_con$quant)
-feature_data_semi_gather_con$type = "Semi"
+feature_data_semi_gather_con$type = "Semi-tryptic"
 feature_data_all = bind_rows(feature_data_try_gather_con, feature_data_semi_gather_con)
 
 plasma_feature_plot = ggplot(feature_data_all, aes(x=condition, y=quant_log, color=condition)) +
@@ -257,7 +257,6 @@ pdf("./supplements/AKT2_woods.pdf", width=7, height = 5)
 semi_precursor_de_report_AKT2_woods
 dev.off()
 
-
 semi_precursor_de_report_H2AX_woods = woods_plot(
   data = semi_precursor_de_report_H2AX_index,
   fold_change = `cancer_vs_control_log2 fold change`,
@@ -271,7 +270,74 @@ semi_precursor_de_report_H2AX_woods = woods_plot(
 pdf("./supplements/H2AX_woods.pdf", width=7, height = 5)
 semi_precursor_de_report_H2AX_woods
 dev.off()
-
 ## Manually re-assign the star position
+
+#### Peptide level comparison
+plasma_try_psm_table = fread("./plasmaData/DIA_lib_try_result/psm.tsv")
+plasma_semi_psm_table = fread("./plasmaData/DIA_lib_semi_result/psm.tsv")
+plasma_try_psm_table_pep = plasma_try_psm_table %>%
+  distinct(Peptide)
+plasma_semi_psm_table_pep = plasma_semi_psm_table %>%
+  distinct(Peptide)
+plasma_try_semi_psm_table_pep_over = plot(euler(list(tryptic = plasma_try_psm_table_pep$Peptide, 
+                                                     `semi-tryptic` = plasma_semi_psm_table_pep$Peptide
+), 
+labels = list(labels=c("tryptic", "semi-tryptic"), fontsize=4.5),
+quantities = list(fontsize = 5),
+fills = c("#2270B5", "#9ECAE1")), quantities = TRUE)
+pdf("./supplements/plasma_tey_semi_pep_over.pdf", width=7, height = 5)
+plasma_try_semi_psm_table_pep_over
+dev.off()
+
+### Protein level
+plasma_semi_psm_table_pep_full = plasma_semi_psm_table %>%
+  distinct(Peptide, `Prev AA`, `Next AA`, `Protein ID`) 
+plasma_semi_psm_table_pep_full_unique = plasma_semi_psm_table_pep_full %>%
+  filter(!Peptide %in% plasma_try_psm_table_pep$Peptide)
+
+plasma_semi_psm_table_pep_full_unique_semi_nterm = plasma_semi_psm_table_pep_full_unique %>%
+  filter(!`Prev AA` %in% c("K", "R", "-"))
+plasma_semi_psm_table_pep_full_unique_semi_cterm = plasma_semi_psm_table_pep_full_unique %>%
+  filter(!`Next AA` %in% c("-")) %>%
+  filter(!str_ends(Peptide, "K")) %>%
+  filter(!str_ends(Peptide, "R"))
+
+plasma_semi_psm_table_pep_full_unique_semi = rbind(plasma_semi_psm_table_pep_full_unique_semi_nterm, plasma_semi_psm_table_pep_full_unique_semi_cterm)
+
+plasma_semi_psm_table_pep_full_unique_semi_pro_num = plasma_semi_psm_table_pep_full_unique_semi %>%
+  group_by(`Protein ID`) %>%
+  summarise(semi_num=n())
+
+plasma_try_de_result_semi_sig = inner_join(plasma_try_de_result, plasma_semi_psm_table_pep_full_unique_semi_pro_num, by="Protein ID") %>%
+  filter(significant) %>%
+  select(`Protein ID`, `cancer_vs_control_log2 fold change`, semi_num)
+colnames(plasma_try_de_result_semi_sig)[2] = "tryptic"
+plasma_semi_de_result_semi_sig = inner_join(plasma_semi_de_result, plasma_semi_psm_table_pep_full_unique_semi_pro_num, by="Protein ID") %>%
+  filter(significant)%>%
+  select(`Protein ID`, `cancer_vs_control_log2 fold change`)
+colnames(plasma_semi_de_result_semi_sig)[2] = "semi-tryptic"
+plasma_def_sig = inner_join(plasma_try_de_result_semi_sig, plasma_semi_de_result_semi_sig, by="Protein ID")
+plasma_def_sig$fc_diff = abs(plasma_def_sig$`semi-tryptic`)-abs(plasma_def_sig$tryptic)
+plasma_def_sig$type = ifelse(plasma_def_sig$fc_diff>0, "Bigger", "Smaller")
+plasma_def_sig_gather = gather(plasma_def_sig, key = "cleavage", value = "fc", c(2,4))
+plasma_fc_plot = ggplot() +
+  geom_point(data=plasma_def_sig_gather, aes(x=`Protein ID`, y=abs(fc), color=cleavage)) +
+  geom_bar(data=plasma_def_sig, aes(x=`Protein ID`, y=fc_diff, fill=type), stat="identity", width=0.75) +
+  theme_light() +
+  ylab("Absolute Fold Change")+
+  scale_fill_manual(values = c("#1F77B4", "#FF7F0E")) +
+  scale_color_manual(values = c("#1F77B4", "#FF7F0E")) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1, size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
+        legend.position = "right",
+        legend.title = element_text(size=10, face="bold"),
+        legend.text = element_text(size = 10),
+        legend.key.size = unit(0.2, "cm"))
+plasma_fc_plot
+ggsave("./supplements/plasma_fc_plot.pdf", plasma_fc_plot, width=10, height = 4, units = c("in"), dpi=400)
+
 
 

@@ -4,6 +4,7 @@ library(ComplexHeatmap)
 library(ggpubr)
 library(ggplot2)
 library(ggrepel)
+library(openxlsx)
 
 ########################
 ### ID numbers plot
@@ -202,12 +203,12 @@ ggsave("./supplements/CSF_overall_precursors.pdf", csf_precursor_overal_num_plot
 # d. running time
 csf_time=c(661, 109.8, 661, 86.9, 1496.29)
 csf_process=c("diaTracer", "FragPipe*", "diaTracer", "FragPipe*", "DIA-NN")
-csf_method = c("FP-diaTracer\n(Semi)", "FP-diaTracer\n(Semi)", "FP-diaTracer\n(Tr)", 
-               "FP-diaTracer\n(Tr)", "DIA-NN\nlib-free(Tr)")
+csf_method = c("FP-diaTracer\n(semi-trpytic)", "FP-diaTracer\n(semi-trpytic)", "FP-diaTracer\n(trpytic)", 
+               "FP-diaTracer\n(trpytic)", "DIA-NN\nlib-free(trpytic)")
 csf_running_time = data_frame(csf_time, csf_process, csf_method)
 csf_running_time$csf_process = factor(csf_running_time$csf_process, levels = c("DIA-NN", "FragPipe*", "diaTracer"))
 csf_running_time$csf_hour = csf_running_time$csf_time/60
-csf_running_time$csf_method = factor(csf_running_time$csf_method, levels = c("FP-diaTracer\n(Tr)", "FP-diaTracer\n(Semi)", "DIA-NN\nlib-free(Tr)"))
+csf_running_time$csf_method = factor(csf_running_time$csf_method, levels = c("FP-diaTracer\n(trpytic)", "FP-diaTracer\n(semi-trpytic)", "DIA-NN\nlib-free(trpytic)"))
 csf_running_time_plot = ggplot(csf_running_time, aes(x=csf_method, y=csf_hour, fill= csf_process)) +
   geom_bar(stat="identity",  color="black", size=0.05, width = 0.8) + 
   scale_fill_manual( name = "Process", values = c("#F39B7FB2", "#4DBBD5B2", "#00A087B2")) +
@@ -390,4 +391,40 @@ ggsave("./figures/Figure2.pdf", figure2_bind_plot, width=5.3, height = 4.2, unit
 
 ### Manually modification using AI later.
 
+
+# Supplement
+csf_open_search_summary = fread("./revisionData/csf/open_search_result/ptm-shepherd-output/global.modsummary.tsv")
+csf_open_search_summary_used = csf_open_search_summary %>%
+  filter(!str_detect(Modification, "isotopic") & 
+           !str_detect(Modification, "Unannotated mass-shift") & 
+           !str_detect(Modification, "None") &
+           `Mass Shift` >= -20 &
+           `Mass Shift` <= 300)
+colnames(csf_open_search_summary_used)[2] = "mass_shift"
+csf_open_search_summary_used_label = csf_open_search_summary_used %>%
+  filter(Modification %in% c('Methylation', "Acetylation", "Phosphorylation", "Pyro-glu from Q/Loss of ammonia", "Carbamylation" ,
+                             "Oxidation or Hydroxylation", "Iodoacetamide derivative/Addition of Glycine/Addition of G", 
+                             "Dehydration/Pyro-glu from E", "Addition of lysine due to transpeptidation/Addition of K"))
+csf_open_search_summary_used_label$dataset01_percent_PSMs = csf_open_search_summary_used_label$dataset01_percent_PSMs +0.2
+csf_open_search_summary_used_label$Modification = c("Water loss\n(-18.01)", "Carbamidomethyl\n(57.02)", "ammonia loss\n(-17.02)", 
+                                                     "Carbamyl\n(43.00)", "Oxidation\n(15.99)", "Addition of K\n(128.095)",
+                                                   'Methyl\n(14.015)', 
+                                                   "Acetyl\n(42.01)", "Phospho\n(79.97)")
+
+csf_open_search_summary_used_plot = ggplot(csf_open_search_summary_used, aes(x=mass_shift, ymax=dataset01_percent_PSMs, ymin=0)) +
+  geom_linerange(linewidth = 0.1) +
+  theme_light() +
+  ylab("Percent of PSMs(%)") +
+  xlab("Mass Shift") +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 4)) +
+  geom_text(data=csf_open_search_summary_used_label,aes(x=mass_shift, y=dataset01_percent_PSMs, label=Modification), size=1.5) +
+  theme(axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 3),
+        axis.title = element_text(size = 5),
+        panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
+        legend.position = "None") +
+  theme(plot.margin = unit(c(0,0.2,0.1,0.5), "cm"))
+csf_open_search_summary_used_plot
+ggsave("./supplements/open_search.pdf", csf_open_search_summary_used_plot, width=4.3, height = 3, units = c("in"), dpi=400)
 
