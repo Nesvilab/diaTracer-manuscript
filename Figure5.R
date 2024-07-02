@@ -332,7 +332,7 @@ phos_sites_num_full_plot = ggplot(phos_sites_num_full, aes(x=Gradient, y=n, fill
         panel.border = element_blank(), panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05))
 phos_sites_num_full_plot
-ggsave("./supplements/all_classes_phospho_sites.pdf", phos_sites_num_full_plot, width=3, height = 1.5, units = c("in"), dpi=400)
+ggsave("./supplements/FigureS8.pdf", phos_sites_num_full_plot, width=3, height = 1.5, units = c("in"), dpi=400)
 
 ### We tried to compare the site level, but lots of things are different. Hard to compare. e.x: Protein inference; localization scoring
 

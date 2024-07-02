@@ -163,16 +163,15 @@ csf_protein_overal_num_plot = ggplot(csf_protein_overal_num_plot_data, aes(x=csf
   ylab("# Protein") +
   xlab("Method") +
   theme_light() +
-  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
-        axis.text.y = element_text(size = 5),
-        axis.title = element_text(size = 5),
+  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 7),
+        axis.text.y = element_text(size = 7),
+        axis.title = element_text(size = 7),
         panel.border = element_blank(), panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
         legend.position = c(.85, .85),
-        legend.title = element_text(size=5, face="bold"),
-        legend.text = element_text(size = 5),
+        legend.title = element_text(size=7, face="bold"),
+        legend.text = element_text(size = 7),
         legend.key.size = unit(0.2, "cm"))
-csf_protein_overal_num_plot
 
 csf_precursor_overal_num = c(nrow(csf_diann_try_pr_processed), nrow(csf_dda_dia_try_pr_processed),
                            nrow(csf_dda_try_pr_processed), nrow(csf_dia_try_pr_processed),
@@ -186,18 +185,20 @@ csf_precursor_overal_num_plot = ggplot(csf_precursor_overal_num_plot_data, aes(x
   ylab("# Precursor") +
   xlab("Method") +
   theme_light() +
-  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
-        axis.text.y = element_text(size = 5),
-        axis.title = element_text(size = 5),
+  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 7),
+        axis.text.y = element_text(size = 7),
+        axis.title = element_text(size = 7),
         panel.border = element_blank(), panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
         legend.position = c(.85, .85),
-        legend.title = element_text(size=5, face="bold"),
-        legend.text = element_text(size = 5),
+        legend.title = element_text(size=7, face="bold"),
+        legend.text = element_text(size = 7),
         legend.key.size = unit(0.2, "cm"))
-csf_precursor_overal_num_plot
-ggsave("./supplements/CSF_overall_proteins.pdf", csf_protein_overal_num_plot, width=4.5, height = 4, units = c("in"), dpi=400)
-ggsave("./supplements/CSF_overall_precursors.pdf", csf_precursor_overal_num_plot, width=4.5, height = 4, units = c("in"), dpi=400)
+figures1_bind_plot = ggarrange(csf_protein_overal_num_plot, csf_precursor_overal_num_plot, widths = c(2.2, 2.2),
+                                        ncol = 2, nrow = 1, align="h", labels = c("a", "b"), font.label = list(size = 10))
+                              
+figures1_bind_plot
+ggsave("./supplements/FigureS1.pdf", figures1_bind_plot, width=5.3, height = 3, units = c("in"), dpi=400)
 
 
 # d. running time
@@ -426,5 +427,5 @@ csf_open_search_summary_used_plot = ggplot(csf_open_search_summary_used, aes(x=m
         legend.position = "None") +
   theme(plot.margin = unit(c(0,0.2,0.1,0.5), "cm"))
 csf_open_search_summary_used_plot
-ggsave("./supplements/open_search.pdf", csf_open_search_summary_used_plot, width=4.3, height = 3, units = c("in"), dpi=400)
+ggsave("./supplements/FigureS2.pdf", csf_open_search_summary_used_plot, width=4.3, height = 3, units = c("in"), dpi=400)
 

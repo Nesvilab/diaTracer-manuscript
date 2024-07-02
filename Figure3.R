@@ -242,21 +242,8 @@ semi_precursor_de_report_AKT2_index$protein_length = max(semi_precursor_de_repor
 semi_precursor_de_report_H2AX_index = left_join(semi_precursor_de_report_H2AX, semi_precursor_psm_used, by = "Index")
 semi_precursor_de_report_H2AX_index$protein_length = max(semi_precursor_de_report_H2AX_index$`Protein End`) + 20
 
+colnames(semi_precursor_de_report_H2AX_index)[5] = "p-value"
 ### Add the wood's plot reference
-semi_precursor_de_report_AKT2_woods = woods_plot(
-  data = semi_precursor_de_report_AKT2_index,
-  fold_change = `cancer_vs_control_log2 fold change`,
-  start_position = `Protein Start`,
-  end_position = `Protein End`,
-  protein_length = protein_length,
-  protein_id = Gene,
-  colouring = `cancer_vs_control_p.val`,
-  highlight = semi
-)
-pdf("./supplements/AKT2_woods.pdf", width=7, height = 5)
-semi_precursor_de_report_AKT2_woods
-dev.off()
-
 semi_precursor_de_report_H2AX_woods = woods_plot(
   data = semi_precursor_de_report_H2AX_index,
   fold_change = `cancer_vs_control_log2 fold change`,
@@ -264,10 +251,10 @@ semi_precursor_de_report_H2AX_woods = woods_plot(
   end_position = `Protein End`,
   protein_length = protein_length,
   protein_id = Gene,
-  colouring = `cancer_vs_control_p.val`,
+  colouring = `p-value`,
   highlight = semi
 )
-pdf("./supplements/H2AX_woods.pdf", width=7, height = 5)
+pdf("./supplements/FigureS4.pdf", width=7, height = 5)
 semi_precursor_de_report_H2AX_woods
 dev.off()
 ## Manually re-assign the star position
@@ -280,12 +267,11 @@ plasma_try_psm_table_pep = plasma_try_psm_table %>%
 plasma_semi_psm_table_pep = plasma_semi_psm_table %>%
   distinct(Peptide)
 plasma_try_semi_psm_table_pep_over = plot(euler(list(tryptic = plasma_try_psm_table_pep$Peptide, 
-                                                     `semi-tryptic` = plasma_semi_psm_table_pep$Peptide
-), 
-labels = list(labels=c("tryptic", "semi-tryptic"), fontsize=4.5),
-quantities = list(fontsize = 5),
-fills = c("#2270B5", "#9ECAE1")), quantities = TRUE)
-pdf("./supplements/plasma_tey_semi_pep_over.pdf", width=7, height = 5)
+                                                     `semi-\ntryptic` = plasma_semi_psm_table_pep$Peptide), 
+                                                labels = list(labels=c("tryptic", "semi-tryptic"), fontsize=4),
+                                                quantities = list(fontsize = 5),
+                                                fills = c("#2270B5", "#9ECAE1")), quantities = TRUE)
+pdf("./supplements/FigureS3.pdf", width=7, height = 5)
 plasma_try_semi_psm_table_pep_over
 dev.off()
 
@@ -318,7 +304,7 @@ plasma_semi_de_result_semi_sig = inner_join(plasma_semi_de_result, plasma_semi_p
 colnames(plasma_semi_de_result_semi_sig)[2] = "semi-tryptic"
 plasma_def_sig = inner_join(plasma_try_de_result_semi_sig, plasma_semi_de_result_semi_sig, by="Protein ID")
 plasma_def_sig$fc_diff = abs(plasma_def_sig$`semi-tryptic`)-abs(plasma_def_sig$tryptic)
-plasma_def_sig$type = ifelse(plasma_def_sig$fc_diff>0, "Bigger", "Smaller")
+plasma_def_sig$type = ifelse(plasma_def_sig$fc_diff>0, "increase", "decrease")
 plasma_def_sig_gather = gather(plasma_def_sig, key = "cleavage", value = "fc", c(2,4))
 plasma_fc_plot = ggplot() +
   geom_point(data=plasma_def_sig_gather, aes(x=`Protein ID`, y=abs(fc), color=cleavage)) +
@@ -337,7 +323,7 @@ plasma_fc_plot = ggplot() +
         legend.text = element_text(size = 10),
         legend.key.size = unit(0.2, "cm"))
 plasma_fc_plot
-ggsave("./supplements/plasma_fc_plot.pdf", plasma_fc_plot, width=10, height = 4, units = c("in"), dpi=400)
+ggsave("./supplements/FigureS5.pdf", plasma_fc_plot, width=10, height = 4, units = c("in"), dpi=400)
 
 
 
