@@ -332,7 +332,127 @@ phos_sites_num_full_plot = ggplot(phos_sites_num_full, aes(x=Gradient, y=n, fill
         panel.border = element_blank(), panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05))
 phos_sites_num_full_plot
-ggsave("./supplements/FigureS8.pdf", phos_sites_num_full_plot, width=3, height = 1.5, units = c("in"), dpi=400)
+ggsave("./supplements/FigureS7.pdf", phos_sites_num_full_plot, width=3, height = 1.5, units = c("in"), dpi=400)
+
+# CV
+get_spectro_pass = function(spectronaut_report){
+  spectronaut_report_ptm = spectronaut_report%>%
+    distinct(EG.PrecursorId, `EG.PTMProbabilities [Phospho (STY)]`)
+  spectronaut_report_ptm_sep = separate_rows(spectronaut_report_ptm, `EG.PTMProbabilities [Phospho (STY)]`, sep=";")
+  spectronaut_report_ptm_sep_pass = spectronaut_report_ptm_sep %>%
+    filter(`EG.PTMProbabilities [Phospho (STY)]` >= 0.75) %>%
+    distinct(EG.PrecursorId)
+  spectronaut_report_out = spectronaut_report %>%
+    filter(EG.PrecursorId %in% spectronaut_report_ptm_sep_pass$EG.PrecursorId) %>%
+    select(R.FileName, EG.PrecursorId, `EG.TotalQuantity (Settings)`)
+  colnames(spectronaut_report_out) = c("Run", "PrecursorID", "Quantity")
+  return(spectronaut_report_out)
+}
+
+get_diann_pass = function(diann_report){
+  diann_report_pass = diann_report %>%
+    filter(!is.na(`STY:79.96633`)) %>%
+    filter(`STY:79.96633 Best Localization` >=0.75)
+  diann_report_pass = diann_report_pass[,10:14]
+  colnames(diann_report_pass)[1] = "PrecursorID"
+  diann_report_out = gather(diann_report_pass, key = "Run", "Quantity", 2:5)
+  return(diann_report_out)
+}
+
+calculate_cv = function(ptm_report, method, gradient, num){
+  ptm_report_num = ptm_report %>%
+    filter(!is.na(Quantity)) %>%
+    group_by(PrecursorID) %>%
+    summarise(n=n())%>%
+    ungroup()%>%
+    filter(n>num)
+  ptm_report_out = ptm_report %>%
+    filter(!is.na(Quantity)) %>%
+    filter(PrecursorID %in% ptm_report_num$PrecursorID) %>%
+    group_by(PrecursorID) %>%
+    summarise_at(vars(Quantity), list(sd=sd, mean=mean))
+  ptm_report_out$cv = (ptm_report_out$sd/ptm_report_out$mean) * 100
+  ptm_report_out$method = method
+  ptm_report_out$gradient = gradient
+  return(ptm_report_out)
+}
+
+spec_7_min_report_ptm = get_spectro_pass(spec_7_min_report)
+phospho_7min_pr_ptm = get_diann_pass(phospho_7min_pr)
+spec_10_min_report_ptm = get_spectro_pass(spec_10_min_report)
+phospho_10min_pr_ptm = get_diann_pass(phospho_10min_pr)
+spec_15_min_report_ptm = get_spectro_pass(spec_15_min_report)
+phospho_15min_pr_ptm = get_diann_pass(phospho_15min_pr)
+spec_21_min_report_ptm = get_spectro_pass(spec_21_min_report)
+phospho_21min_pr_ptm = get_diann_pass(phospho_21min_pr)
+spec_30_min_report_ptm = get_spectro_pass(spec_30_min_report)
+phospho_30min_pr_ptm = get_diann_pass(phospho_30min_pr)
+spec_60_min_report_ptm = get_spectro_pass(spec_60_min_report)
+phospho_60min_pr_ptm = get_diann_pass(phospho_60min_pr)
+
+cv_num = 1
+phospho_7min_pr_cv = calculate_cv(phospho_7min_pr_ptm, "FP-diaTracer", "7min", cv_num)
+spec_7_min_report_cv = calculate_cv(spec_7_min_report_ptm, "Spectronaut", "7min", cv_num)
+phospho_10min_pr_cv = calculate_cv(phospho_10min_pr_ptm, "FP-diaTracer", "10min", cv_num)
+spec_10_min_report_cv = calculate_cv(spec_10_min_report_ptm, "Spectronaut", "10min", cv_num)
+phospho_15min_pr_cv = calculate_cv(phospho_15min_pr_ptm, "FP-diaTracer", "15min", cv_num)
+spec_15_min_report_cv = calculate_cv(spec_15_min_report_ptm, "Spectronaut", "15min", cv_num)
+phospho_21min_pr_cv = calculate_cv(phospho_21min_pr_ptm, "FP-diaTracer", "21min", cv_num)
+spec_21_min_report_cv = calculate_cv(spec_21_min_report_ptm, "Spectronaut", "21min", cv_num)
+phospho_30min_pr_cv = calculate_cv(phospho_30min_pr_ptm, "FP-diaTracer", "30min", cv_num)
+spec_30_min_report_cv = calculate_cv(spec_30_min_report_ptm, "Spectronaut", "30min", cv_num)
+phospho_60min_pr_cv = calculate_cv(phospho_60min_pr_ptm, "FP-diaTracer", "60min", cv_num)
+spec_60_min_report_cv = calculate_cv(spec_60_min_report_ptm, "Spectronaut", "60min", cv_num)
+
+cv_plot_data = phospho_7min_pr_cv %>%
+  bind_rows(spec_7_min_report_cv) %>%
+  bind_rows(phospho_10min_pr_cv) %>%
+  bind_rows(spec_10_min_report_cv) %>%
+  bind_rows(phospho_15min_pr_cv) %>%
+  bind_rows(spec_15_min_report_cv) %>%
+  bind_rows(phospho_21min_pr_cv) %>%
+  bind_rows(spec_21_min_report_cv) %>%
+  bind_rows(phospho_30min_pr_cv) %>%
+  bind_rows(spec_30_min_report_cv) %>%
+  bind_rows(phospho_60min_pr_cv) %>%
+  bind_rows(spec_60_min_report_cv)
+
+cv_plot_data$gradient <- factor(cv_plot_data$gradient , levels=c("7min", "10min", "15min", "21min", "30min", "60min"))
+cv_plot = ggplot(cv_plot_data, aes(x= gradient, y=cv, fill=method)) + 
+  geom_boxplot(size=0.1, width=0.5, alpha=0.9, position = position_dodge(0.9), outliers = F) +
+  scale_fill_manual(values = c("#1F77B4", "#FF7F0E")) +
+  ylab("Coefficient Variation (%)") +
+  xlab("Gradient") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
+        axis.text.y = element_text(size = 5),
+        axis.title = element_text(size = 5),
+        panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
+        legend.position = "top",
+        legend.title = element_text(size=5, face="bold"),
+        legend.text = element_text(size = 5),
+        legend.key.size = unit(0.2, "cm"))
+cv_plot
+cv_plot_out = ggplot(cv_plot_data, aes(x= gradient, y=cv, fill=method)) + 
+  geom_boxplot(size=0.1, width=0.5, alpha=0.9, position = position_dodge(0.9), outlier.size = 0.1) +
+  scale_fill_manual(values = c("#1F77B4", "#FF7F0E")) +
+  ylab("Coefficient Variation (%)") +
+  xlab("Gradient") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
+        axis.text.y = element_text(size = 5),
+        axis.title = element_text(size = 5),
+        panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
+        legend.position = "top",
+        legend.title = element_text(size=5, face="bold"),
+        legend.text = element_text(size = 5),
+        legend.key.size = unit(0.2, "cm"))
+cv_plot_all= ggarrange(cv_plot_out, cv_plot,
+                       ncol = 1, nrow = 2, align="v", labels = c("a", "b"), font.label = list(size = 10), 
+                       common.legend = T, legend = "top")
+ggsave("./supplements/FigureS8.pdf", cv_plot_all, width=3, height = 3, units = c("in"), dpi=400)
 
 ### We tried to compare the site level, but lots of things are different. Hard to compare. e.x: Protein inference; localization scoring
 

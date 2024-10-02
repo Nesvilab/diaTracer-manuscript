@@ -9,9 +9,9 @@ library(openxlsx)
 ########################
 ### ID numbers plot
 ########################
-count_id_num = function(report_data, miss_num, col_name, method_name, level_name){
+count_id_num = function(report_data, miss_num, col_name, method_name, level_name, sample_num){
   col_num = ncol(report_data)
-  report_data_gather = gather(report_data, raw_files, quant, (col_num-33):col_num)
+  report_data_gather = gather(report_data, raw_files, quant, (col_num-sample_num):col_num)
   
   col_name <- enquo(col_name)
   report_data_group = report_data_gather %>%
@@ -27,7 +27,7 @@ count_id_num = function(report_data, miss_num, col_name, method_name, level_name
   report_data_filter = report_data %>%
     filter(!!col_name %in% report_data_group$id)
   
-  report_data_filter_gather = gather(report_data_filter, raw_files, quant, (col_num-33):col_num)
+  report_data_filter_gather = gather(report_data_filter, raw_files, quant, (col_num-sample_num):col_num)
   report_data_filter_gather_group = report_data_filter_gather%>%
     filter(!is.na(quant)) %>%
     group_by(raw_files) %>%
@@ -40,27 +40,91 @@ count_id_num = function(report_data, miss_num, col_name, method_name, level_name
   report_data_filter_gather_group$Cleavage = level_name
   return(report_data_filter_gather_group)
 }
+### Missing values estimate
+missing_summarize = function(report_data, method){
+  col_num = ncol(report_data)
+  report_data_gather = gather(report_data, raw_files, quant, (col_num-15):col_num)
+  
+  report_data_group = report_data_gather %>%
+    filter(!is.na(quant)) %>%
+    group_by(V1) %>%
+    summarise(n=n()) %>%
+    ungroup()
+  
+  report_data_group_out_25 = report_data_group %>%
+    filter(n >= 4)
+  report_data_group_out_50 = report_data_group %>%
+    filter(n >= 8)
+  report_data_group_out_100 = report_data_group %>%
+    filter(n == 16)
+  
+  report_data_group_out_25_pure = report_data_group_out_25 %>%
+    filter(!V1 %in% report_data_group_out_50$V1)
+  report_data_group_out_50_pure = report_data_group_out_50 %>%
+    filter(!V1 %in% report_data_group_out_100$V1)
+  report_data_group_out_other = report_data_group %>%
+    filter(!V1 %in% report_data_group_out_25$V1)
+  
+  id_portion = c("100%", ">50%", ">25%", "<25%")
+  id_num = c(nrow(report_data_group_out_100), nrow(report_data_group_out_50_pure), nrow(report_data_group_out_25_pure), nrow(report_data_group_out_other))
+  
+  out_data = data_frame(id_portion, id_num)
+  out_data$method = method
+  
+  return(out_data)
+}
+missing_summarize_sp_pro = function(spectronaut_report, method, col_name){
+  col_name <- enquo(col_name)
+  spectronaut_report_group = spectronaut_report %>%
+    distinct(!!col_name, R.FileName) %>%
+    group_by(!!col_name) %>%
+    summarise(n=n()) %>%
+    ungroup()
+  spectronaut_report_group_out_25 = spectronaut_report_group %>%
+    filter(n >= 4)
+  spectronaut_report_group_out_50 = spectronaut_report_group %>%
+    filter(n >= 8)
+  spectronaut_report_group_out_100 = spectronaut_report_group %>%
+    filter(n == 16)
+  
+  spectronaut_report_group_out_25_pure = spectronaut_report_group_out_25 %>%
+    filter(!PG.GroupLabel %in% spectronaut_report_group_out_50$PG.GroupLabel)
+  spectronaut_report_group_out_50_pure = spectronaut_report_group_out_50 %>%
+    filter(!PG.GroupLabel %in% spectronaut_report_group_out_100$PG.GroupLabel)
+  report_data_group_out_other = spectronaut_report_group %>%
+    filter(!PG.GroupLabel %in% spectronaut_report_group_out_25$PG.GroupLabel)
+  
+  id_portion = c("100%", ">50%", ">25%", "<25%")
+  id_num = c(nrow(spectronaut_report_group_out_100), nrow(spectronaut_report_group_out_50_pure), 
+             nrow(spectronaut_report_group_out_25_pure), nrow(report_data_group_out_other))
+  
+  out_data = data_frame(id_portion, id_num)
+  out_data$method = method
+  
+  return(out_data)
+}
 read_maxlfq = function(file_path){
   out_data = fread(file_path) %>%
     filter(V1 != "")
 }
 
 # a gg num
-csf_diann_try_gg_processed = read_maxlfq("./CSFData/DIA_NN_LF_result/gene_maxlfq.tsv")
-csf_dda_try_gg_processed = read_maxlfq("./CSFData/DDA_lib_try_result/diann-output/gene_maxlfq.tsv")
-csf_dia_try_gg_processed = read_maxlfq("./CSFData/DIA_lib_try_result/diann-output/gene_maxlfq.tsv")
-csf_dda_dia_semi_gg_processed = read_maxlfq("./CSFData/DDA_DIA_lib_semi_result/diann-output/gene_maxlfq.tsv")
-csf_dda_semi_gg_processed = read_maxlfq("./CSFData/DDA_lib_semi_result/diann-output/gene_maxlfq.tsv")
-csf_dia_semi_gg_processed = read_maxlfq("./CSFData/DIA_lib_semi_result/diann-output/gene_maxlfq.tsv")
-csf_dda_dia_try_gg_processed = read_maxlfq("./CSFData/DDA_DIA_lib_try_result/diann-output/gene_maxlfq.tsv")
+csf_diann_try_gg_processed = read_maxlfq("./CSFData/DIA_NN_LF_result/protein_maxlfq.tsv")
+csf_dda_try_gg_processed = read_maxlfq("./CSFData/DDA_lib_try_result/diann-output/protein_maxlfq.tsv")
+csf_dia_try_gg_processed = read_maxlfq("./CSFData/DIA_lib_try_result/diann-output/protein_maxlfq.tsv")
+csf_dda_dia_semi_gg_processed = read_maxlfq("./CSFData/DDA_DIA_lib_semi_result/diann-output/protein_maxlfq.tsv")
+csf_dda_semi_gg_processed = read_maxlfq("./CSFData/DDA_lib_semi_result/diann-output/protein_maxlfq.tsv")
+csf_dia_semi_gg_processed = read_maxlfq("./CSFData/DIA_lib_semi_result/diann-output/protein_maxlfq.tsv")
+csf_dda_dia_try_gg_processed = read_maxlfq("./CSFData/DDA_DIA_lib_try_result/diann-output/protein_maxlfq.tsv")
 
-csf_dda_dia_try_gg_processed_num = count_id_num(csf_dda_dia_try_gg_processed, 0, V1, "FP-diaTracer\nhybrid", "Tryptic")
-csf_diann_try_gg_processed_num = count_id_num(csf_diann_try_gg_processed, 0, V1, "DIA-NN\nlib-free", "Tryptic")
-csf_dda_try_gg_processed_num = count_id_num(csf_dda_try_gg_processed, 0, V1, "FP-\nDDALib", "Tryptic")
-csf_dia_try_gg_processed_num = count_id_num(csf_dia_try_gg_processed, 0, V1, "FP-\ndiaTracer", "Tryptic")
-csf_dda_dia_semi_gg_processed_num = count_id_num(csf_dda_dia_semi_gg_processed, 0, V1, "FP-diaTracer\nhybrid", "Semi-tryptic")
-csf_dda_semi_gg_processed_num = count_id_num(csf_dda_semi_gg_processed, 0, V1, "FP-\nDDALib", "Semi-tryptic")
-csf_dia_semi_gg_processed_num = count_id_num(csf_dia_semi_gg_processed, 0, V1, "FP-\ndiaTracer", "Semi-tryptic")
+csf_sample_num = 33
+csf_dda_dia_try_gg_processed_num = count_id_num(csf_dda_dia_try_gg_processed, 0, V1, "FP-diaTracer\nhybrid", "Tryptic", csf_sample_num)
+csf_diann_try_gg_processed_num = count_id_num(csf_diann_try_gg_processed, 0, V1, "DIA-NN\nlib-free", "Tryptic", csf_sample_num)
+csf_dda_try_gg_processed_num = count_id_num(csf_dda_try_gg_processed, 0, V1, "FP-\nDDALib", "Tryptic", csf_sample_num)
+csf_dia_try_gg_processed_num = count_id_num(csf_dia_try_gg_processed, 0, V1, "FP-\ndiaTracer", "Tryptic", csf_sample_num)
+csf_dda_dia_semi_gg_processed_num = count_id_num(csf_dda_dia_semi_gg_processed, 0, V1, "FP-diaTracer\nhybrid", "Semi-tryptic", csf_sample_num)
+csf_dda_semi_gg_processed_num = count_id_num(csf_dda_semi_gg_processed, 0, V1, "FP-\nDDALib", "Semi-tryptic", csf_sample_num)
+csf_dia_semi_gg_processed_num = count_id_num(csf_dia_semi_gg_processed, 0, V1, "FP-\ndiaTracer", "Semi-tryptic", csf_sample_num)
 
 csf_nums_for_plot_protein = bind_rows(csf_dda_dia_try_gg_processed_num) %>%
   bind_rows(csf_diann_try_gg_processed_num) %>%
@@ -103,13 +167,13 @@ csf_dda_semi_pr_processed = read_maxlfq("./CSFData/DDA_lib_semi_result/diann-out
 csf_dia_semi_pr_processed = read_maxlfq("./CSFData/DIA_lib_semi_result/diann-output/precursor_maxlfq.tsv")
 csf_dda_dia_try_pr_processed = read_maxlfq("./CSFData/DDA_DIA_lib_try_result/diann-output/precursor_maxlfq.tsv")
 
-csf_dda_dia_try_pr_processed_num = count_id_num(csf_dda_dia_try_pr_processed, 0, V1, "FP-diaTracer\nhybrid", "Tryptic")
-csf_diann_try_pr_processed_num = count_id_num(csf_diann_try_pr_processed, 0, V1, "DIA-NN\nlib-free", "Tryptic")
-csf_dda_try_pr_processed_num = count_id_num(csf_dda_try_pr_processed, 0, V1, "FP-\nDDALib", "Tryptic")
-csf_dia_try_pr_processed_num = count_id_num(csf_dia_try_pr_processed, 0, V1, "FP-\ndiaTracer", "Tryptic")
-csf_dda_dia_semi_pr_processed_num = count_id_num(csf_dda_dia_semi_pr_processed, 0, V1, "FP-diaTracer\nhybrid", "Semi-tryptic")
-csf_dda_semi_pr_processed_num = count_id_num(csf_dda_semi_pr_processed, 0, V1, "FP-\nDDALib", "Semi-tryptic")
-csf_dia_semi_pr_processed_num = count_id_num(csf_dia_semi_pr_processed, 0, V1, "FP-\ndiaTracer", "Semi-tryptic")
+csf_dda_dia_try_pr_processed_num = count_id_num(csf_dda_dia_try_pr_processed, 0, V1, "FP-diaTracer\nhybrid", "Tryptic", csf_sample_num)
+csf_diann_try_pr_processed_num = count_id_num(csf_diann_try_pr_processed, 0, V1, "DIA-NN\nlib-free", "Tryptic", csf_sample_num)
+csf_dda_try_pr_processed_num = count_id_num(csf_dda_try_pr_processed, 0, V1, "FP-\nDDALib", "Tryptic", csf_sample_num)
+csf_dia_try_pr_processed_num = count_id_num(csf_dia_try_pr_processed, 0, V1, "FP-\ndiaTracer", "Tryptic", csf_sample_num)
+csf_dda_dia_semi_pr_processed_num = count_id_num(csf_dda_dia_semi_pr_processed, 0, V1, "FP-diaTracer\nhybrid", "Semi-tryptic", csf_sample_num)
+csf_dda_semi_pr_processed_num = count_id_num(csf_dda_semi_pr_processed, 0, V1, "FP-\nDDALib", "Semi-tryptic", csf_sample_num)
+csf_dia_semi_pr_processed_num = count_id_num(csf_dia_semi_pr_processed, 0, V1, "FP-\ndiaTracer", "Semi-tryptic", csf_sample_num)
 
 csf_nums_for_plot_precursor = bind_rows(csf_dda_dia_try_pr_processed_num) %>%
   bind_rows(csf_diann_try_pr_processed_num) %>%
@@ -380,15 +444,104 @@ csf_massoffset_summary_used_plot = ggplot(csf_massoffset_summary_used, aes(x=mas
   theme(plot.margin = unit(c(0,0.2,0.1,0.5), "cm"))
 csf_massoffset_summary_used_plot
 
+# F and G requested by reviewer using new dataset
+spectronaut_report_num = fread("./TNBCData/spectronaut/TNBC2020_4223_Spectronaut18-5_library_free_directDIA_IdentificationsOverview.tsv")
+spectronaut_report = fread("./TNBCData/spectronaut/20240921_233058_TNBC2020_4223_Spectronaut18-5_library_free_directDIA_ReportAll.tsv")
+
+breast_cancer_diatracer_pg_processed = read_maxlfq("./TNBCData/diaTracer_result_Frag22_methylthiolation/diann-output/protein_maxlfq.tsv")
+breast_cancer_hybrid_pg_processed = read_maxlfq("./TNBCData/diaTracer_hybrid_result_Frag22_methylthiolation/diann-output/protein_maxlfq.tsv")
+breast_cancer_diann_pg_processed = read_maxlfq("./TNBCData/14_MainSearch_4223_DIA-NN_1.8.1_library_free/14_MainSearch_4223_DIA-NN_1.8.1_library_free/protein_maxlfq.tsv")
+
+breast_sample_num = 15
+breast_cancer_diatracer_pg_processed_num = count_id_num(breast_cancer_diatracer_pg_processed, 0, V1, "FP-diaTracer", "Tryptic", breast_sample_num)
+breast_cancer_hybrid_pg_processed_num = count_id_num(breast_cancer_hybrid_pg_processed, 0, V1, "FP-diaTracer\nhybrid", "Tryptic", breast_sample_num)
+breast_cancer_diann_pg_processed_num = count_id_num(breast_cancer_diann_pg_processed, 0, V1, "DIA-NN\nlib-free 1.8", "Tryptic", breast_sample_num)
+
+spectronaut_report_protein_num = spectronaut_report_num %>%
+  select(FileName, Proteins)
+colnames(spectronaut_report_protein_num) = c("V1", "n")
+spectronaut_report_protein_num$method = "Spectronaut\ndirectDIA"
+spectronaut_report_protein_num$Cleavage = "Tryptic"
+
+breast_cancer_nums_for_plot_protein = bind_rows(breast_cancer_diatracer_pg_processed_num) %>%
+  bind_rows(breast_cancer_hybrid_pg_processed_num) %>%
+  bind_rows(breast_cancer_diann_pg_processed_num) %>%
+  bind_rows(spectronaut_report_protein_num)
+breast_cancer_nums_for_plot_protein$small_n = breast_cancer_nums_for_plot_protein$n / 1000
+breast_cancer_nums_for_plot_protein$method <- factor(breast_cancer_nums_for_plot_protein$method , levels=c("Spectronaut\ndirectDIA", "DIA-NN\nlib-free 1.8", "FP-diaTracer", "FP-diaTracer\nhybrid"))
+breast_cancer_total_nums_for_plot_protein = data.frame(method = c("Spectronaut\ndirectDIA", "FP-diaTracer", "FP-diaTracer\nhybrid", "DIA-NN\nlib-free 1.8"))
+breast_cancer_total_nums_for_plot_protein$totalNum = c(10032, nrow(breast_cancer_diatracer_pg_processed), 
+                                                       nrow(breast_cancer_hybrid_pg_processed), nrow(breast_cancer_diann_pg_processed))
+breast_cancer_total_nums_for_plot_protein$smallTotalNum = (breast_cancer_total_nums_for_plot_protein$totalNum/1000)
+breast_cancer_total_nums_for_plot_protein$method <- factor(breast_cancer_total_nums_for_plot_protein$method , levels=c("Spectronaut\ndirectDIA", "DIA-NN\nlib-free 1.8", "FP-diaTracer", "FP-diaTracer\nhybrid"))
+
+breast_cancer_pg_dis_plot = ggplot(data=breast_cancer_nums_for_plot_protein, aes(x=method, y=small_n, col=method)) +
+  geom_boxplot(outlier.size = 0, size=0.1) +
+  geom_point(position=position_jitterdodge(0.1), size=0.3, alpha=0.6)+
+  scale_y_continuous( expand = c(0, 0), limits = c(0, 12)) +
+  scale_color_brewer(palette="Dark2") +
+  ylab("# Protein (x1000)") +
+  xlab("Method") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
+        axis.text.y = element_text(size = 5),
+        axis.title = element_text(size = 5),
+        panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
+        legend.position = "none",
+        legend.title = element_text(size=5, face="bold"),
+        legend.text = element_text(size = 5),
+        legend.key.size = unit(0.2, "cm"))
+breast_cancer_pg_dis_plot
+
+breast_nums_for_plot_protein_avg = breast_cancer_nums_for_plot_protein %>%
+  group_by(method) %>%
+  summarise(avg = mean(n))
+
+breast_cancer_diatracer_pg_processed_miss = missing_summarize(breast_cancer_diatracer_pg_processed, "FP-diaTracer")
+breast_cancer_hybrid_pg_processed_miss = missing_summarize(breast_cancer_hybrid_pg_processed, "FP-diaTracer\nhybrid")
+breast_cancer_diann_pg_processed_processed_miss = missing_summarize(breast_cancer_diann_pg_processed, "DIA-NN\nlib-free 1.8")
+breast_cancer_spectronaut_pro_miss = missing_summarize_sp_pro(spectronaut_report, "Spectronaut\ndirectDIA", PG.GroupLabel)
+
+breast_cancer_num_pro_miss = bind_rows(breast_cancer_diatracer_pg_processed_miss) %>%
+  bind_rows(breast_cancer_hybrid_pg_processed_miss) %>%
+  bind_rows(breast_cancer_diann_pg_processed_processed_miss) %>%
+  bind_rows(breast_cancer_spectronaut_pro_miss)
+breast_cancer_num_pro_miss$small_id_num = breast_cancer_num_pro_miss$id_num/1000
+breast_cancer_num_pro_miss$id_portion = factor(breast_cancer_num_pro_miss$id_portion, levels = c("<25%", ">25%", ">50%", "100%" ), ordered = TRUE)
+breast_cancer_num_pro_miss$method = factor(breast_cancer_num_pro_miss$method, levels=c("Spectronaut\ndirectDIA", "DIA-NN\nlib-free 1.8", "FP-diaTracer", "FP-diaTracer\nhybrid"), ordered = TRUE)
+breast_cancer_num_pro_miss_plot = ggplot(breast_cancer_num_pro_miss, aes(x=method, y=small_id_num, fill= id_portion)) +
+  geom_bar(stat="identity",  color="black", size=0.05, width = 0.8) +
+  scale_fill_brewer(palette="Blues", name="Portion") +
+  scale_y_continuous(expand = c(0.01, 0)) +
+  ylab("# Proteins (x1000)") +
+  xlab("Method") +
+  theme_light() +
+  labs(fill= "Non-missing\nvalue filter") +
+  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
+        axis.text.y = element_text(size = 5),
+        axis.title = element_text(size = 5),
+        panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
+        legend.position = "right",
+        legend.title = element_text(size=5, face="bold"),
+        legend.text = element_text(size = 5),
+        legend.key.size = unit(0.2, "cm"))
+breast_cancer_num_pro_miss_plot
+
+
+#### Arrange figures
 figure2_bind_plot = ggarrange(ggarrange(csf_gg_dis_plot, csf_pr_dis_plot, widths = c(2.2, 2.2),
                                 ncol = 2, nrow = 1, align="h", labels = c("a", "b"), font.label = list(size = 10)),
                       ggarrange(P02790_overlap_plot, csf_running_time_plot, widths = c(2, 1),
                                 ncol = 2, nrow = 1, align="h", labels = c("c", "d"), font.label = list(size = 10)),
                       ggarrange(csf_massoffset_summary_used_plot, widths = c(1),
                                 ncol = 1, nrow = 1, align="h", labels = c("e"), font.label = list(size = 10)),
-                      nrow = 3, ncol=1, align = "v", heights = c(2, 1.5, 1))
+                      ggarrange(breast_cancer_pg_dis_plot, breast_cancer_num_pro_miss_plot, widths = c(0.8, 1),
+                                ncol = 2, nrow = 1, align="h", labels = c("f", "g"), font.label = list(size = 10)),
+                      nrow = 4, ncol=1, align = "v", heights = c(2, 1.5, 1, 1.5))
 figure2_bind_plot
-ggsave("./figures/Figure2.pdf", figure2_bind_plot, width=5.3, height = 4.2, units = c("in"), dpi=400)
+ggsave("./figures/Figure2.pdf", figure2_bind_plot, width=5.3, height = 5.2, units = c("in"), dpi=400)
 
 ### Manually modification using AI later.
 

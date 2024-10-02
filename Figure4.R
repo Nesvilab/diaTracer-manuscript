@@ -252,7 +252,7 @@ hla_immu_overlap = UpSet(m,
         annotation_name_side = "left", 
         annotation_name_rot = 90),)
 
-pdf("./supplements/FigureS7.pdf", width=7, height = 4)
+pdf("./supplements/FigureS6.pdf", width=7, height = 4)
 hla_immu_overlap
 dev.off()
 
@@ -301,7 +301,7 @@ spec_di_netmhcpan_bind_num_plot = ggplot(spec_di_netmhcpan_bind_num, aes(x=Allel
         legend.text = element_text(size = 5),
         legend.key.size = unit(0.2, "cm"))
 spec_di_netmhcpan_bind_num_plot
-ggsave("./supplements/FigureS6.pdf", spec_di_netmhcpan_bind_num_plot, width=3, height = 3, units = c("in"), dpi=400)
+ggsave("./supplements/FigureS5.pdf", spec_di_netmhcpan_bind_num_plot, width=3, height = 3, units = c("in"), dpi=400)
 
 bind_plot = ggarrange(ggarrange(hla_num_plot, netmhcpan_result_bind_num_plot, length_dist_plot, widths = c(1.2, 2.2, 2.2),
                                 ncol = 3, nrow = 1, align="h", labels = c("a", "b", "c"), font.label = list(size = 10)),

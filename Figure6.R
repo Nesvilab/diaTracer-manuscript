@@ -168,12 +168,9 @@ write.table(fig4_lib_exp_detail_anno, "./lowInputData/Direct_lib_result/experime
             quote = F, row.names = F, sep = "\t")
 
 # missing value one class
-single_cell_fig4_lib_gg_result = read_maxlfq("./lowInputData/Direct_lib_result/diann-output/gene_maxlfq.tsv")
-single_cell_fig3_lib_gg_result = read_maxlfq("./lowInputData/Tonsil_lib_result/diann-output/gene_maxlfq.tsv")
-single_cell_diann_gg_result = read_maxlfq("./lowInputData/DIANN_results_Fig4_original_study/gene_maxlfq.tsv")
-# single_cell_fig4_lib_gg_result = fread("Z:/lkai/data/projects/diaPasefCentric2023/manuascript/data/single_cell/Figure4_tonsil_niches_result/diann-output/report.pg_matrix_test.tsv")
-# single_cell_fig3_lib_gg_result = fread("Z:/lkai/data/projects/diaPasefCentric2023/manuascript/data/single_cell/figure3_lib_result/diann-output/report.pg_matrix_test.tsv")
-# single_cell_diann_gg_result = fread("Z:/lkai/data/projects/diaPasefCentric2023/manuascript/data/single_cell/DIANN_results_Fig4/report.pg_matrix_test.tsv")
+single_cell_fig4_lib_gg_result = read_maxlfq("./lowInputData/Direct_lib_result/diann-output/protein_maxlfq.tsv")
+single_cell_fig3_lib_gg_result = read_maxlfq("./lowInputData/Tonsil_lib_result/diann-output/protein_maxlfq.tsv")
+single_cell_diann_gg_result = read_maxlfq("./lowInputData/DIANN_results_Fig4_original_study/protein_maxlfq.tsv")
 
 #!!! The number changed since I update the annotation file. One file and sample is mapped to a wrong group in the begining.
 fig4_lib_exp_one_class = fread("./lowInputData/Direct_lib_result/experiment_annotation_over.tsv") %>%
