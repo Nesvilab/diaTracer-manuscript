@@ -127,8 +127,9 @@ generate_new_reports("./lowInputData/Direct_lib_result/diann-output/report.tsv")
 generate_new_reports("./lowInputData/DIANN_results_Fig4_original_study/report.tsv")
 
 ### Breast cancer
-generate_new_reports("../../data/revision/PXD047793/14_MainSearch_4223_DIA-NN_1.8.1_library_free/14_MainSearch_4223_DIA-NN_1.8.1_library_free/report.tsv")
-generate_new_reports("../../data/revision/PXD047793/library_result_Frag22_methylthiolation/diann-output/report.tsv")
-generate_new_reports("../../data/revision/PXD047793/diaTracer_hybrid_result_Frag22_methylthiolation/diann-output/report.tsv")
-generate_new_reports("../../data/revision/PXD047793/diaTracer_result_Frag22_methylthiolation/diann-output/report.tsv")
+generate_new_reports("./revisionData/TNBCData/14_MainSearch_4223_DIA-NN_1.8.1_library_free/14_MainSearch_4223_DIA-NN_1.8.1_library_free/report.tsv")
+generate_new_reports("./revisionData/TNBCData/diaTracer_hybrid_result_Frag22_methylthiolation/diann-output/report.tsv")
+generate_new_reports("./revisionData/TNBCData/diaTracer_result_Frag22_methylthiolation/diann-output/report.tsv")
+generate_new_reports("./revisionData/TNBCData/12_MainSearch_4223_DIA-NN_1.8.1_library_based/12_MainSearch_4223_DIA-NN_1.8.1_newSN16lib/report.tsv")
+
 

@@ -1,409 +1,463 @@
 library(tidyverse)
 library(data.table)
-library(ComplexHeatmap)
-library(psych)
-library(plotly)
-library(eulerr)
-library(ggrepel)
+library(ggpubr)
+library(ggpmisc)
+library(GGally)
+library(ggplot2)
 
-read_maxlfq = function(file_path){
-  out_data = fread(file_path) %>%
-    filter(V1 != "")
-}
+get_mod_pos = function(diann_pr, frag_pep, pep_max){
+  diann_pr = diann_pr %>%
+    filter(`Modified.Sequence` %in% pep_max$V1)
+  phospho_pep=list()
+  position= list()
+  probability = list()
+  for (one_pho in diann_pr$`STY:79.96633`) {
+    phos_comp = strsplit(one_pho, "\\(|)")
+    pos_index = 0
+    one_part_index = 1
+    for (one_part in phos_comp[[1]]) {
+      if (one_part_index%%2 == 1) {
+        pos_index = pos_index + str_length(one_part)
+      } else{
+        prob = as.numeric(one_part)
+        phospho_pep = append(phospho_pep, one_pho)
+        position = append(position, pos_index)
+        probability = append(probability, prob)
+      }
+      one_part_index = one_part_index +1
+    }
+    
+  }
+  
+  phos_pos_table = data.frame(array(unlist(phospho_pep)), array(unlist(position)), array(unlist(probability)))
+  colnames(phos_pos_table) = c("phospho_pep", "position", "probability")
 
-count_id_num = function(report_data, miss_num, col_name, method_name, level_name){
-  col_num = ncol(report_data)
-  report_data_gather = gather(report_data, raw_files, quant, (col_num-147):col_num)
+  diann_pr_pep = diann_pr %>%
+    distinct(`Protein.Ids`, `Stripped.Sequence`, `STY:79.96633`)
+  colnames(diann_pr_pep) = c("protein_id", "pep_seq", "phospho_pep")
+  phos_pos_table_hig = phos_pos_table %>%
+    filter(probability >= 0.75)
+  diann_pos = inner_join(diann_pr_pep, phos_pos_table_hig, by=c("phospho_pep"))
   
-  col_name <- enquo(col_name)
-  report_data_group = report_data_gather %>%
-    filter(!is.na(quant)) %>%
-    group_by(!!col_name) %>%
-    summarise(n=n()) %>%
-    ungroup()
-  colnames(report_data_group)[1] = "id"
-  
-  report_data_group_out = report_data_group %>%
-    filter(n >= miss_num)
-  
-  report_data_filter = report_data %>%
-    filter(!!col_name %in% report_data_group$id)
-  
-  report_data_filter_gather = gather(report_data_filter, raw_files, quant, (col_num-147):col_num)
-  report_data_filter_gather_group = report_data_filter_gather%>%
-    filter(!is.na(quant)) %>%
-    group_by(raw_files) %>%
-    summarise(n=n()) %>%
-    ungroup()
-  colnames(report_data_filter_gather_group)[1] = "V1"
-  report_data_filter_gather_group$V1 = gsub("\\\\", "", report_data_filter_gather_group$V1)
-  report_data_filter_gather_group$V1 = str_replace_all(report_data_filter_gather_group$V1, "G:diaPASEF_PandeyRAW_DIA", "")
-  report_data_filter_gather_group$method = method_name
-  report_data_filter_gather_group$Cleavage = level_name
-  return(report_data_filter_gather_group)
-}
-
-### Summarize average
-average_summarize = function(report_data, one_class_data, miss_ratio){
-  report_data_filter = missing_summarize_one_class(report_data, one_class_data, miss_ratio)
-  report_data_used = report_data %>%
-    filter(V1 %in% report_data_filter$V1)
-  col_num = ncol(report_data_used)
-  report_data_gather = gather(report_data_used, raw_files, quant, (col_num-147):col_num)
-  report_data_group = report_data_gather %>%
-    filter(!is.na(quant)) %>%
-    group_by(raw_files) %>%
-    summarise(n=n()) %>%
-    ungroup()
-  
-  return(report_data_group)
-}
-
-### Missing values estimate
-missing_summarize = function(report_data, method){
-  col_num = ncol(report_data)
-  report_data_gather = gather(report_data, raw_files, quant, (col_num-147):col_num)
-  
-  report_data_group = report_data_gather %>%
-    filter(!is.na(quant)) %>%
-    group_by(V1) %>%
-    summarise(n=n()) %>%
-    ungroup()
-  
-  report_data_group_out_25 = report_data_group %>%
-    filter(n >= 37)
-  report_data_group_out_50 = report_data_group %>%
-    filter(n >= 74)
-  report_data_group_out_100 = report_data_group %>%
-    filter(n == 148)
-  
-  report_data_group_out_25_pure = report_data_group_out_25 %>%
-    filter(!V1 %in% report_data_group_out_50$V1)
-  report_data_group_out_50_pure = report_data_group_out_50 %>%
-    filter(!V1 %in% report_data_group_out_100$V1)
-  report_data_group_out_other = report_data_group %>%
-    filter(!V1 %in% report_data_group_out_25$V1)
-  
-  id_portion = c("100%", ">50%", ">25%", "<25%")
-  id_num = c(nrow(report_data_group_out_100), nrow(report_data_group_out_50_pure), nrow(report_data_group_out_25_pure), nrow(report_data_group_out_other))
-  
-  out_data = data_frame(id_portion, id_num)
-  out_data$method = method
+  colnames(frag_pep) = c("pep_seq", "protein_start", "protein_id")
+  out_data = inner_join(diann_pos, frag_pep, by=c("protein_id", "pep_seq"))
+  out_data$mod_pos = out_data$protein_start + out_data$position -1
   
   return(out_data)
 }
 
-### Missing values estimate
-missing_summarize_one_class = function(report_data, class_file, thres_pass){
-  col_num = ncol(report_data)
-  report_data_gather = gather(report_data, sample_name, quant, (col_num-147):col_num)
-  report_data_gather$sample_name = str_replace_all(report_data_gather$sample_name, " ", "_")
+get_mod_full_pos = function(diann_pr, frag_pep, pep_max){
+  diann_pr = diann_pr %>%
+    filter(`Modified.Sequence` %in% pep_max$V1)
+  phospho_pep=list()
+  position= list()
+  probability = list()
+  for (one_pho in diann_pr$`STY:79.96633`) {
+    phos_comp = strsplit(one_pho, "\\(|)")
+    pos_index = 0
+    one_part_index = 1
+    for (one_part in phos_comp[[1]]) {
+      if (one_part_index%%2 == 1) {
+        pos_index = pos_index + str_length(one_part)
+      } else{
+        prob = as.numeric(one_part)
+        phospho_pep = append(phospho_pep, one_pho)
+        position = append(position, pos_index)
+        probability = append(probability, prob)
+      }
+      one_part_index = one_part_index +1
+    }
+    
+  }
   
-  report_data_gather_con = left_join(report_data_gather, class_file, by="sample_name")
-  report_data_group = report_data_gather_con %>%
-    filter(!is.na(quant)) %>%
-    group_by(V1, condition) %>%
-    summarise(n=n()) %>%
-    ungroup()
+  phos_pos_table = data.frame(array(unlist(phospho_pep)), array(unlist(position)), array(unlist(probability)))
+  colnames(phos_pos_table) = c("phospho_pep", "position", "probability")
   
-  fig4_lib_exp_one_class_num = class_file%>%
-    group_by(condition) %>%
-    summarise(num=n())
-  report_data_group_num = left_join(report_data_group, fig4_lib_exp_one_class_num, by="condition")
-  report_data_group_num$ratio = report_data_group_num$n/report_data_group_num$num
-  report_data_group_num_pass = report_data_group_num %>%
-    filter(ratio >= thres_pass) %>%
-    distinct(V1)
+  diann_pr_pep = diann_pr %>%
+    distinct(`Protein.Ids`, `Stripped.Sequence`, `STY:79.96633`)
+  colnames(diann_pr_pep) = c("protein_id", "pep_seq", "phospho_pep")
   
-
-  return((report_data_group_num_pass))
+  diann_pos = inner_join(diann_pr_pep, phos_pos_table, by=c("phospho_pep"))
+  
+  colnames(frag_pep) = c("pep_seq", "protein_start", "protein_id")
+  out_data = inner_join(diann_pos, frag_pep, by=c("protein_id", "pep_seq"))
+  out_data$mod_pos = out_data$protein_start + out_data$position -1
+  
+  out_data_unique = out_data %>%
+    distinct(protein_id, mod_pos, probability) %>%
+    group_by(protein_id, mod_pos) %>% 
+    slice(which.max(probability)) 
+  out_data_unique$class = ifelse(out_data_unique$probability >0.75, "Class I", ifelse(out_data_unique$probability >0.5, "Class II", "Class III"))
+  
+  return(out_data_unique)
 }
 
-# prepare analysist
-generate_over_anno = function(exp_anno){
-  exp_anno$condition = ifelse(str_detect(exp_anno$sample_name, "Epithelium"), "Epithelium", 
-                              ifelse(str_detect(exp_anno$sample_name, "T_cell"), "T-cell zone", 
-                                     ifelse(str_detect(exp_anno$sample_name, "mantle_zone") | str_detect(exp_anno$sample_name, "manle_zone"), "Mantel zone", "Germinal center")))
+get_class_num = function(out_data_unique, gradient){
+  out_data_unique_class = out_data_unique %>%
+    group_by(class) %>%
+    summarise(n=n())
+  out_data_unique_class$Gradient = gradient
   
-  return(exp_anno)
+  return(out_data_unique_class)
 }
 
-generate_detail_anno = function(exp_anno){
-  exp_anno$condition = ifelse(str_detect(exp_anno$sample_name, "Epithelium"), "Epithelium", 
-                              ifelse(str_detect(exp_anno$sample_name, "T_cell"), "T_cell", 
-                                     ifelse(str_detect(exp_anno$sample_name, "dark_zone"), "dark_zone", 
-                                            ifelse(str_detect(exp_anno$sample_name, "grey_zone"), "grey_zone", 
-                                                   ifelse(str_detect(exp_anno$sample_name, "light_zone"), "light_zone", 
-                                                          "mantle_zone")))))
-  return(exp_anno)
+get_strip_pep = function(diann_pr, pep_max){
+  diann_pr_pass = diann_pr %>%
+    filter(`Modified.Sequence` %in% pep_max$V1)
+  
+  diann_pr_pass_strip_pep = diann_pr_pass %>%
+    distinct(`Stripped.Sequence`)
+  
+  return(nrow(diann_pr_pass_strip_pep))
+
 }
 
-fig3_lib_exp = fread("./lowInputData/Tonsil_lib_result/experiment_annotation.tsv") %>%
-  filter(str_ends(file, ".d"))
-fig3_lib_pg_matrix = fread("./lowInputData/Tonsil_lib_result/diann-output/report.pg_matrix.tsv")
-fig3_lib_exp_over_anno = generate_over_anno(fig3_lib_exp)
-fig3_lib_exp_detail_anno = generate_detail_anno(fig3_lib_exp)
-write.table(fig3_lib_exp_over_anno, "./lowInputData/Tonsil_lib_result/experiment_annotation_over.tsv",
-            quote = F, row.names = F, sep = "\t")
-write.table(fig3_lib_exp_detail_anno, "./lowInputData/Tonsil_lib_result/experiment_annotation_detail.tsv",
-            quote = F, row.names = F, sep = "\t")
-fig3_lib_exp_detail_anno_germ = fig3_lib_exp_detail_anno %>%
-  filter(condition %in% c("dark_zone", "grey_zone", "light_zone"))
-fig3_lib_pg_matrix_gather = gather(fig3_lib_pg_matrix, "file", "value", 6:153)
-fig3_lib_pg_matrix_gather = fig3_lib_pg_matrix_gather %>%
-  filter(file %in% fig3_lib_exp_detail_anno_germ$file)
-fig3_lib_pg_matrix_gather_spread = spread(fig3_lib_pg_matrix_gather, file, value)
-write.table(fig3_lib_exp_detail_anno_germ, "./lowInputData/Tonsil_lib_result/experiment_annotation_germ.tsv",
-            quote = F, row.names = F, sep = "\t")
-write.table(fig3_lib_pg_matrix_gather_spread, "./lowInputData/Tonsil_lib_result/diann-output/report.pg_matrix_germ.tsv",
-            quote = F, row.names = F, sep = "\t")
-
-fig4_lib_exp = fread("./lowInputData/Direct_lib_result/experiment_annotation.tsv") %>%
-  filter(str_ends(file, ".d"))
-fig4_lib_exp_over_anno = generate_over_anno(fig4_lib_exp)
-fig4_lib_exp_detail_anno = generate_detail_anno(fig4_lib_exp)
-write.table(fig4_lib_exp_over_anno, "./lowInputData/Direct_lib_result/experiment_annotation_over.tsv",
-            quote = F, row.names = F, sep = "\t")
-write.table(fig4_lib_exp_detail_anno, "./lowInputData/Direct_lib_result/experiment_annotation_detail.tsv",
-            quote = F, row.names = F, sep = "\t")
-
-# missing value one class
-single_cell_fig4_lib_gg_result = read_maxlfq("./lowInputData/Direct_lib_result/diann-output/protein_maxlfq.tsv")
-single_cell_fig3_lib_gg_result = read_maxlfq("./lowInputData/Tonsil_lib_result/diann-output/protein_maxlfq.tsv")
-single_cell_diann_gg_result = read_maxlfq("./lowInputData/DIANN_results_Fig4_original_study/protein_maxlfq.tsv")
-
-#!!! The number changed since I update the annotation file. One file and sample is mapped to a wrong group in the begining.
-fig4_lib_exp_one_class = fread("./lowInputData/Direct_lib_result/experiment_annotation_over.tsv") %>%
-  select(sample_name, condition)
-fig4_lib_exp_one_class$sample_name = paste("Bluto_230", fig4_lib_exp_one_class$sample_name, sep = "")
-
-fig4_lib_miss_num = list()
-fig3_lib_miss_num = list()
-paper_miss_num = list()
-non_miss_ratio = list()
-for (num in 0:10) {
-  non_miss_ratio = append(non_miss_ratio, paste(num*10, "%", sep=""))
-  fig4_lib_miss_num = append(fig4_lib_miss_num, nrow(missing_summarize_one_class(single_cell_fig4_lib_gg_result, fig4_lib_exp_one_class, num/10)))
-  fig3_lib_miss_num = append(fig3_lib_miss_num, nrow(missing_summarize_one_class(single_cell_fig3_lib_gg_result, fig4_lib_exp_one_class, num/10)))
-  paper_miss_num = append(paper_miss_num, nrow(missing_summarize_one_class(single_cell_diann_gg_result, fig4_lib_exp_one_class, num/10)))
+get_strip_pep_spec = function(spec_report){
+  spec_report_strip_pep = spec_report %>%
+    filter(str_detect(`EG.ModifiedPeptide`, "Phospho")) %>%
+    distinct(`PEP.StrippedSequence`)
+  
+  return(nrow(spec_report_strip_pep))
+  
 }
-single_cell_missing_class_num = data.frame(`Anuar et al.` = array(unlist(paper_miss_num)), 
-                                           `FP-diaTracer high-input Lib` = array(unlist(fig3_lib_miss_num)),
-                                           `FP-diaTracer` = array(unlist(fig4_lib_miss_num)),
-                                           ratio = array(unlist(non_miss_ratio)))
-single_cell_missing_class_num_gather = gather(single_cell_missing_class_num, method, num, 1:3)
-#single_cell_missing_class_num_gather$ratio = factor(single_cell_missing_class_num_gather$ratio, levels = c("50%", "60%", "70%", "80%", "90%", "100%"), ordered = TRUE)
-single_cell_missing_class_num_gather$ratio = factor(single_cell_missing_class_num_gather$ratio, levels = c("0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"), ordered = TRUE)
-single_cell_missing_class_num_full_plot = ggplot(single_cell_missing_class_num_gather, aes(x=ratio, y=num, group=method)) +
-  geom_line(aes(color=method))+
-  geom_point(aes(color=method, shape=method)) +
-  scale_y_continuous(expand = c(0.01, 0), limits = c(0, 3600)) +
-  scale_color_manual(values = c("#E54D37", "#5CBED3", "#06A088")) +
-  ylab("# Protein") +
-  xlab("Non-missing ratio") +
+
+phospho_7min_mod_pep = fread("./phosphoData/7min_result/diann-output/modified_sequence_maxlfq.tsv")
+phospho_7min_pr = fread("./phosphoData/7min_result/diann-output/report.pr_matrix.tsv") 
+phospho_7min_pr_pass = phospho_7min_pr %>%
+  filter(`STY:79.96633 Best Localization` > 0.75)
+phospho_7min_pep_table = fread("./phosphoData/7min_result/peptide.tsv") %>%
+  distinct(Peptide, `Protein Start`, `Protein ID`)
+phospho_7min_mod_sites = get_mod_pos(phospho_7min_pr_pass, phospho_7min_pep_table, phospho_7min_mod_pep)
+phospho_7min_mod_sites_uni = phospho_7min_mod_sites %>%
+  distinct(protein_id, mod_pos)
+
+phospho_10min_mod_pep = fread("./phosphoData/10min_result/diann-output/modified_sequence_maxlfq.tsv")
+phospho_10min_pr = fread("./phosphoData/10min_result/diann-output/report.pr_matrix.tsv")
+phospho_10min_pr_pass = phospho_10min_pr %>%
+  filter(`STY:79.96633 Best Localization` > 0.75)
+phospho_10min_pep_table = fread("./phosphoData/10min_result/peptide.tsv") %>%
+  distinct(Peptide, `Protein Start`, `Protein ID`)
+phospho_10min_mod_sites = get_mod_pos(phospho_10min_pr_pass, phospho_10min_pep_table, phospho_10min_mod_pep)
+phospho_10min_mod_sites_uni = phospho_10min_mod_sites %>%
+  distinct(protein_id, mod_pos)
+
+phospho_15min_mod_pep = fread("./phosphoData/15min_result/diann-output/modified_sequence_maxlfq.tsv")
+phospho_15min_pr = fread("./phosphoData/15min_result/diann-output/report.pr_matrix.tsv")
+phospho_15min_pr_pass = phospho_15min_pr %>%
+  filter(`STY:79.96633 Best Localization` > 0.75)
+phospho_15min_pep_table = fread("./phosphoData/15min_result/peptide.tsv") %>%
+  distinct(Peptide, `Protein Start`, `Protein ID`)
+phospho_15min_mod_sites = get_mod_pos(phospho_15min_pr_pass, phospho_15min_pep_table, phospho_15min_mod_pep)
+phospho_15min_mod_sites_uni = phospho_15min_mod_sites %>%
+  distinct(protein_id, mod_pos)
+
+phospho_21min_mod_pep = fread("./phosphoData/21min_result/diann-output/modified_sequence_maxlfq.tsv")
+phospho_21min_pr = fread("./phosphoData/21min_result/diann-output/report.pr_matrix.tsv")
+phospho_21min_pr_pass = phospho_21min_pr %>%
+  filter(`STY:79.96633 Best Localization` > 0.75)
+phospho_21min_pep_table = fread("./phosphoData/21min_result/peptide.tsv") %>%
+  distinct(Peptide, `Protein Start`, `Protein ID`)
+phospho_21min_mod_sites = get_mod_pos(phospho_21min_pr_pass, phospho_21min_pep_table, phospho_21min_mod_pep)
+phospho_21min_mod_sites_uni = phospho_21min_mod_sites %>%
+  distinct(protein_id, mod_pos)
+
+phospho_30min_mod_pep = fread("./phosphoData/30min_result/diann-output/modified_sequence_maxlfq.tsv")
+phospho_30min_pr = fread("./phosphoData/30min_result/diann-output/report.pr_matrix.tsv") 
+phospho_30min_pr_pass = phospho_30min_pr%>%
+  filter(`STY:79.96633 Best Localization` > 0.75)
+phospho_30min_pep_table = fread("./phosphoData/30min_result/peptide.tsv") %>%
+  distinct(Peptide, `Protein Start`, `Protein ID`)
+phospho_30min_mod_sites = get_mod_pos(phospho_30min_pr_pass, phospho_30min_pep_table, phospho_30min_mod_pep)
+phospho_30min_mod_sites_uni = phospho_30min_mod_sites %>%
+  distinct(protein_id, mod_pos)
+
+phospho_60min_mod_pep = fread("./phosphoData/60min_result/diann-output/modified_sequence_maxlfq.tsv")
+phospho_60min_pr = fread("./phosphoData/60min_result/diann-output/report.pr_matrix.tsv")
+phospho_60min_pr_pass = phospho_60min_pr %>%
+  filter(`STY:79.96633 Best Localization` > 0.75)
+phospho_60min_pep_table = fread("./phosphoData/60min_result/peptide.tsv") %>%
+  distinct(Peptide, `Protein Start`, `Protein ID`)
+phospho_60min_mod_sites = get_mod_pos(phospho_60min_pr_pass, phospho_60min_pep_table, phospho_60min_mod_pep)
+phospho_60min_mod_sites_uni = phospho_60min_mod_sites %>%
+  distinct(protein_id, mod_pos)
+
+# a. Stripped seq num
+phos_strip_pep_num = c(get_strip_pep(phospho_7min_pr, phospho_7min_mod_pep),
+                  get_strip_pep(phospho_10min_pr, phospho_10min_mod_pep),
+                  get_strip_pep(phospho_15min_pr, phospho_15min_mod_pep),
+                  get_strip_pep(phospho_21min_pr, phospho_21min_mod_pep),
+                  get_strip_pep(phospho_30min_pr, phospho_30min_mod_pep),
+                  get_strip_pep(phospho_60min_pr, phospho_60min_mod_pep))
+gradient_list = c("7", "10", "15", "21", "30", "60")
+phos_strip_pep_num_plot_data = data.frame(gradient_list, phos_strip_pep_num)
+phos_strip_pep_num_plot_data$small_phos_strip_pep_num = phos_strip_pep_num_plot_data$phos_strip_pep_num/1000
+
+spec_7_min_report = fread("./phosphoData/Spectronaut analysis files/20240305_112743_phospho_7min_Report.tsv")
+spec_10_min_report = fread("./phosphoData/Spectronaut analysis files/20240923_135416_phospho_10min_Report.tsv")
+spec_15_min_report = fread("./phosphoData/Spectronaut analysis files/20240923_135415_phospho_15min_Report.tsv")
+spec_21_min_report = fread("./phosphoData/Spectronaut analysis files/20240923_135413_Phospho_21min_Report.tsv")
+spec_30_min_report = fread("./phosphoData/Spectronaut analysis files/20240923_135411_Phospho_30min_Report.tsv")
+spec_60_min_report = fread("./phosphoData/Spectronaut analysis files/20240923_123119_Phospho_60min_Report.tsv")
+
+phos_strip_pep_num_spec = c(get_strip_pep_spec(spec_7_min_report),
+                            get_strip_pep_spec(spec_10_min_report),
+                            get_strip_pep_spec(spec_15_min_report),
+                            get_strip_pep_spec(spec_21_min_report),
+                            get_strip_pep_spec(spec_30_min_report),
+                            get_strip_pep_spec(spec_60_min_report))
+phos_strip_pep_num_plot_data_spec = data.frame(gradient_list, `Oliinyk et al.`= phos_strip_pep_num_spec)
+colnames(phos_strip_pep_num_plot_data)[2] = "FragPipe"
+phos_strip_pep_num_plot_data_spec_Frag = inner_join(phos_strip_pep_num_plot_data, phos_strip_pep_num_plot_data_spec, by = "gradient_list")
+phos_strip_pep_num_plot_data_spec_Frag$small_phos_strip_pep_num = NULL
+phos_strip_pep_num_plot_data_spec_Frag_gather = gather(phos_strip_pep_num_plot_data_spec_Frag, 2:3, key="method", value="Num")
+phos_strip_pep_num_plot_data_spec_Frag_gather$small_sum = phos_strip_pep_num_plot_data_spec_Frag_gather$Num/1000
+
+phos_sites_num = c(nrow(phospho_7min_mod_sites_uni),
+                   nrow(phospho_10min_mod_sites_uni),
+                   nrow(phospho_15min_mod_sites_uni),
+                   nrow(phospho_21min_mod_sites_uni),
+                   nrow(phospho_30min_mod_sites_uni),
+                   nrow(phospho_60min_mod_sites_uni))
+phos_sites_num_plot_data = data.frame(gradient_list, phos_sites_num)
+phos_sites_num_plot_data$small_phos_sites_num = phos_sites_num_plot_data$phos_sites_num/1000
+phos_sites_num_plot_data$method = "FragPipe"
+
+phos_strip_pep_num_spec_Frag_plot = ggplot() +
+  geom_bar(data=phos_strip_pep_num_plot_data_spec_Frag_gather, aes(x=reorder(gradient_list, Num), y=small_sum, fill=method), stat="identity", color="black", size=0.05, width = 0.8, position=position_dodge()) +
+  ylab("# Phosphopeptide Sequences \n(X1000)") +
+  xlab("Gradient (min)") +
   theme_light() +
-  theme(legend.position=c(0.33,0.15),
-        legend.title = element_text(size=4.5, face="bold"),
-        legend.text = element_text(size = 4.5),
-        legend.key.size = unit(0.1, "cm"),
-        legend.background = element_blank()) +
-  geom_vline(xintercept = 8, linetype="dashed", color = "black", size=0.2)+
-  geom_vline(xintercept = 10, linetype="dashed", color = "red", size=0.2)+
+  scale_fill_manual(values = c("#1F77B4", "#FF7F0E"))+
+  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
+        axis.text.y = element_text(size = 5),
+        axis.title = element_text(size = 5),
+        panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
+        legend.title = element_text(size=5, face="bold"),
+        legend.text = element_text(size = 5),
+        legend.key.size = unit(0.2, "cm"),
+        legend.position = c(.18, .9))
+phos_strip_pep_num_spec_Frag_plot
+
+# intensity comp
+phospho_7min_pr_rep1_2 = phospho_7min_pr %>%
+  filter(!is.na(`STY:79.96633`)) %>%
+  filter(`STY:79.96633 Best Localization` >=0.75)
+phospho_7min_pr_rep1_2 = phospho_7min_pr_rep1_2[,11:14]
+colnames(phospho_7min_pr_rep1_2) = c("Rep 1", "Rep 4", "Rep 3", "Rep 2")
+phospho_7min_pr_rep1_2 = na.omit(phospho_7min_pr_rep1_2)
+phospho_7min_pr_rep1_2$`Rep 1` = log10(phospho_7min_pr_rep1_2$`Rep 1`)
+phospho_7min_pr_rep1_2$`Rep 4` = log10(phospho_7min_pr_rep1_2$`Rep 4`)
+phospho_7min_pr_rep1_2$`Rep 3` = log10(phospho_7min_pr_rep1_2$`Rep 3`)
+phospho_7min_pr_rep1_2$`Rep 2` = log10(phospho_7min_pr_rep1_2$`Rep 2`)
+phospho_7min_int_cor_plot = ggpairs(phospho_7min_pr_rep1_2, 
+        upper = list(method="p", continuous = wrap('cor', size = 2, stars = F)),
+        lower = list(continuous = wrap("points", size=0.03, alpha = 0.4),
+                     combo = wrap("dot", alpha = 0.4, size=0.03)),
+        diag = list(continuous = "densityDiag", size=0.2))+ 
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
+        axis.text.y = element_text(size = 5),
+        axis.title = element_text(size = 5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black", size = 0.05),
+        strip.text = element_text(
+          size = 5, margin = margin(0,0,0,0, "cm")))
+pdf("./figures/Figure6b.pdf", width=2.7, height = 2)
+phospho_7min_int_cor_plot
+dev.off()
+
+# Sites num
+phos_sites_num = c(nrow(phospho_7min_mod_sites_uni),
+                   nrow(phospho_10min_mod_sites_uni),
+                   nrow(phospho_15min_mod_sites_uni),
+                   nrow(phospho_21min_mod_sites_uni),
+                   nrow(phospho_30min_mod_sites_uni),
+                   nrow(phospho_60min_mod_sites_uni))
+phos_sites_num_plot_data = data.frame(gradient_list, phos_sites_num)
+phos_sites_num_plot_data$small_phos_sites_num = phos_sites_num_plot_data$phos_sites_num/1000
+phos_sites_num_plot = ggplot(phos_sites_num_plot_data, aes(x=reorder(gradient_list, small_phos_sites_num), y=small_phos_sites_num)) +
+  geom_bar(stat="identity", fill="#4292C6", color="black", size=0.05, width = 0.8) +
+  ylab("# Phosphorylation sites\n(x1000)") +
+  xlab("Gradient (min)") +
+  theme_light() +
+  scale_y_continuous(expand = c(0.01, 0)) +
   theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
         axis.text.y = element_text(size = 5),
         axis.title = element_text(size = 5),
         panel.border = element_blank(), panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05))
-single_cell_missing_class_num_full_plot
-ggsave("./figures/non_miss_dis.pdf", single_cell_missing_class_num_full_plot, width=2.5, height = 2, units = c("in"), dpi=400)
 
-# summarize numbers
-single_cell_fig3_lib_gg_result_group = average_summarize(single_cell_fig3_lib_gg_result, fig4_lib_exp_one_class, 0)
-single_cell_fig4_lib_gg_result_group = average_summarize(single_cell_fig4_lib_gg_result, fig4_lib_exp_one_class, 0)
-single_cell_diann_gg_result_group = average_summarize(single_cell_diann_gg_result, fig4_lib_exp_one_class, 0)
-mean(single_cell_fig3_lib_gg_result_group$n)
-mean(single_cell_fig4_lib_gg_result_group$n)
-mean(single_cell_diann_gg_result_group$n)
+bind_plot = ggarrange(phos_strip_pep_num_spec_Frag_plot, widths = c(2.2),
+                                ncol = 1, nrow = 1, align="h", labels = c("a"), font.label = list(size = 10))
+ggsave("./figures/Figure6a.pdf", bind_plot, width=2.5, height = 2, units = c("in"), dpi=400)
 
-single_cell_fig3_lib_gg_result_group_70 = average_summarize(single_cell_fig3_lib_gg_result, fig4_lib_exp_one_class, 0.7)
-single_cell_fig4_lib_gg_result_group_70 = average_summarize(single_cell_fig4_lib_gg_result, fig4_lib_exp_one_class, 0.7)
-mean(single_cell_fig3_lib_gg_result_group_70$n)
-mean(single_cell_fig4_lib_gg_result_group_70$n)
+### Assemble all figures using AI
 
-single_cell_fig3_lib_gg_result_group_90 = average_summarize(single_cell_fig3_lib_gg_result, fig4_lib_exp_one_class, 0.9)
-single_cell_fig4_lib_gg_result_group_90 = average_summarize(single_cell_fig4_lib_gg_result, fig4_lib_exp_one_class, 0.9)
-mean(single_cell_fig3_lib_gg_result_group_90$n)
-mean(single_cell_fig4_lib_gg_result_group_90$n)
+# Supplement
+phospho_7min_mod_sites_full = get_mod_full_pos(phospho_7min_pr, phospho_7min_pep_table, phospho_7min_mod_pep)
+phospho_10min_mod_sites_full = get_mod_full_pos(phospho_10min_pr_pass, phospho_10min_pep_table, phospho_10min_mod_pep)
+phospho_15min_mod_sites_full = get_mod_full_pos(phospho_15min_pr_pass, phospho_15min_pep_table, phospho_15min_mod_pep)
+phospho_21min_mod_sites_full = get_mod_full_pos(phospho_21min_pr_pass, phospho_21min_pep_table, phospho_21min_mod_pep)
+phospho_30min_mod_sites_full = get_mod_full_pos(phospho_30min_pr_pass, phospho_30min_pep_table, phospho_30min_mod_pep)
+phospho_60min_mod_sites_full = get_mod_full_pos(phospho_60min_pr_pass, phospho_60min_pep_table, phospho_60min_mod_pep)
 
-single_cell_70_non_miss_over = plot(venn(list(fig3_lib = missing_summarize_one_class(single_cell_fig3_lib_gg_result, fig4_lib_exp_one_class, 0.7)$V1, 
-                fig4_lib = missing_summarize_one_class(single_cell_fig4_lib_gg_result, fig4_lib_exp_one_class, 0.7)$V1,
-                paper = missing_summarize_one_class(single_cell_diann_gg_result, fig4_lib_exp_one_class, 0.7)$V1)), 
-                labels = list(labels=c("FP-diaTracer\nhigh-input\nLib", "FP-diaTracer", "Anuar\n et al."), fontsize=4.5),
-                quantities = list(fontsize = 5),
-                fills = c("#2270B5", "#9ECAE1", "#6BAED6"))
-single_cell_70_non_miss_over
-ggsave("./figures/non_miss_70_ven.pdf", single_cell_70_non_miss_over, width=1.5, height = 1.5, units = c("in"), dpi=400)
+phospho_7min_mod_sites_full_class = get_class_num(phospho_7min_mod_sites_full, "7")
+phospho_10min_mod_sites_full_class = get_class_num(phospho_10min_mod_sites_full, "10")
+phospho_15min_mod_sites_full_class = get_class_num(phospho_15min_mod_sites_full, "15")
+phospho_21min_mod_sites_full_class = get_class_num(phospho_21min_mod_sites_full, "21")
+phospho_30min_mod_sites_full_class = get_class_num(phospho_30min_mod_sites_full, "30")
+phospho_60min_mod_sites_full_class = get_class_num(phospho_60min_mod_sites_full, "60")
+phos_sites_num_full = phospho_7min_mod_sites_full_class %>%
+  rbind(phospho_10min_mod_sites_full_class) %>%
+  rbind(phospho_15min_mod_sites_full_class) %>%
+  rbind(phospho_21min_mod_sites_full_class) %>%
+  rbind(phospho_30min_mod_sites_full_class) %>%
+  rbind(phospho_60min_mod_sites_full_class)
 
-# PCA.
-plot_pca = function(imputed_data, annotation_data, padding){
-  imputed_data_gather = gather(imputed_data, sample_name, value, 2:149)
-  imputed_data_gather_spread = spread(imputed_data_gather, ProteinID, value)
-  annotation_data_simple = annotation_data %>%
-    select(sample_name, condition)
-  annotation_data_simple$sample_name = paste(padding, annotation_data_simple$sample_name, "_imputed_intensity", sep="")
-  imputed_data_gather_spread_cond = left_join(imputed_data_gather_spread, annotation_data_simple, by="sample_name")
-  imputed_data_gather_spread_cond$sample_name = NULL
-  imputed_data_gather_spread_cond = imputed_data_gather_spread_cond[order(imputed_data_gather_spread_cond$condition),]
-  print(imputed_data_gather_spread_cond$condition)
-  imputed_data_gather_spread_cond_pca = select(imputed_data_gather_spread_cond, -condition)
-  pc_comp <- prcomp(imputed_data_gather_spread_cond_pca,
-                    center = T,
-                    scale. = F)
-  components <- pc_comp[["x"]]
-  components <- data.frame(components)
-  components$PC2 <- -components$PC2
-  components$PC3 <- -components$PC3
-  components = cbind(components, imputed_data_gather_spread_cond$condition)
-  
-  fig <- plot_ly(components, x = ~PC1, y = ~PC2, z = ~PC3, 
-                 color = ~imputed_data_gather_spread_cond$condition, 
-                 colors = c('#636EFA','#EF553B','#00CC96', "blue"),
-                 marker = list(size = 9, line = list(color = 'black',
-                                                     width = 1.5))) %>%
-    add_markers(size=0)
-  
-  
-  fig <- fig %>%
-    layout(scene = list(bgcolor = "white", 
-                        xaxis = list(title = list(text=paste('PC1=', summary(pc_comp)$importance[2,][1][[1]]*100, "%", sep=""), font=list(size=15)), 
-                                     tickfont = list(size = 6)),
-                        yaxis = list(title = list(text=paste('PC2=', summary(pc_comp)$importance[2,][2][[1]]*100, "%", sep=""), font=list(size=15)), 
-                                     tickfont = list(size = 6)),
-                        zaxis = list(title = list(text=paste('PC3=', summary(pc_comp)$importance[2,][3][[1]]*100, "%", sep=""), font=list(size=15)), 
-                                     tickfont = list(size = 6))))
-  
-  return(fig)
+phos_sites_num_full$Gradient <- factor(phos_sites_num_full$Gradient , levels=c("7", "10", "15", "21", "30", "60"))
+phos_sites_num_full_plot = ggplot(phos_sites_num_full, aes(x=Gradient, y=n, fill=class)) +
+  geom_bar(position="stack", stat="identity", color="black", size=0.05, width = 0.8) +
+  ylab("# Phosphorylation sites\n(x1000)") +
+  xlab("Gradient (min)") +
+  theme_light() +
+  scale_y_continuous(expand = c(0.01, 0)) +
+  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
+        axis.text.y = element_text(size = 5),
+        axis.title = element_text(size = 5),
+        legend.title = element_text(size=5, face="bold"),
+        legend.text = element_text(size = 5),
+        legend.key.size = unit(0.2, "cm"),
+        panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05))
+phos_sites_num_full_plot
+ggsave("./supplements/FigureS7.pdf", phos_sites_num_full_plot, width=3, height = 1.5, units = c("in"), dpi=400)
+
+# CV
+get_spectro_pass = function(spectronaut_report){
+  spectronaut_report_ptm = spectronaut_report%>%
+    distinct(EG.PrecursorId, `EG.PTMProbabilities [Phospho (STY)]`)
+  spectronaut_report_ptm_sep = separate_rows(spectronaut_report_ptm, `EG.PTMProbabilities [Phospho (STY)]`, sep=";")
+  spectronaut_report_ptm_sep_pass = spectronaut_report_ptm_sep %>%
+    filter(`EG.PTMProbabilities [Phospho (STY)]` >= 0.75) %>%
+    distinct(EG.PrecursorId)
+  spectronaut_report_out = spectronaut_report %>%
+    filter(EG.PrecursorId %in% spectronaut_report_ptm_sep_pass$EG.PrecursorId) %>%
+    select(R.FileName, EG.PrecursorId, `EG.TotalQuantity (Settings)`)
+  colnames(spectronaut_report_out) = c("Run", "PrecursorID", "Quantity")
+  return(spectronaut_report_out)
 }
-fig4_lib_exp_over_anno = fread("./lowInputData/Direct_lib_result/experiment_annotation_over.tsv")
 
-fig3_lib_imputed_table = fread("./lowInputData/Tonsil_lib_result/fragpipe_analyst/Imputed_matrix.csv")
-fig3_lib_pca = plot_pca(fig3_lib_imputed_table, fig4_lib_exp_over_anno, "30")
-
-### Imputed_matrix.csv download from FragPipe-analysist.
-fig4_lib_imputed_table = fread("./lowInputData/Direct_lib_result/fragpipe_analyst/Imputed_matrix.csv")
-single_cell_fig4_lib_gg_result_70_non = missing_summarize_one_class(single_cell_fig4_lib_gg_result, fig4_lib_exp_one_class, 0.7)
-fig4_lib_imputed_table_passed = fig4_lib_imputed_table %>%
-  filter(ProteinID %in% single_cell_fig4_lib_gg_result_70_non$V1)
-
-fig4_lib_pca = plot_pca(fig4_lib_imputed_table_passed, fig4_lib_exp_over_anno, "")
-fig4_lib_pca # PCA plot save manually since need to modify 3D position.
-
-# gene expression non_imputed
-get_expre_one_gene = function(report_data, class_file, gene_name_list){
-  col_num = ncol(report_data)
-  report_data_used = report_data %>%
-    filter(V1 %in% gene_name_list)
-  report_data_gather = gather(report_data_used, sample_name, quant, (col_num-147):col_num)
-  
-  report_data_gather_con = inner_join(report_data_gather, class_file, by="sample_name")
-  
-  return(report_data_gather_con)
+get_diann_pass = function(diann_report){
+  diann_report_pass = diann_report %>%
+    filter(!is.na(`STY:79.96633`)) %>%
+    filter(`STY:79.96633 Best Localization` >=0.75)
+  diann_report_pass = diann_report_pass[,10:14]
+  colnames(diann_report_pass)[1] = "PrecursorID"
+  diann_report_out = gather(diann_report_pass, key = "Run", "Quantity", 2:5)
+  return(diann_report_out)
 }
-get_expre_one_gene_imputed = function(report_data, class_file, gene_name_list){
-  col_num = ncol(report_data)
-  report_data_used = report_data %>%
-    filter(ProteinID %in% gene_name_list)
-  report_data_gather = gather(report_data_used, sample_name, quant, (col_num-147):col_num)
-  
-  report_data_gather_con = inner_join(report_data_gather, class_file, by="sample_name")
-  
-  return(report_data_gather_con)
-}
-genes_needed =c("CD19", "CD3D", "CDH1")
-#genes_needed =c("IL16", "IL18", "STAT1", "CD19", "CD3D", "CDH1") All six genes have good correlation with original styudy. Only select three to show in main figure
-fig4_lib_exp_one_class = fread("./lowInputData/Direct_lib_result/experiment_annotation_over.tsv") %>%
-  select(sample_name, condition)
-fig4_lib_exp_one_class$sample_name = paste("Bluto_230", fig4_lib_exp_one_class$sample_name, sep = "")
-genes_needed_data = get_expre_one_gene(single_cell_fig4_lib_gg_result, fig4_lib_exp_one_class, genes_needed)
-genes_needed_data$quant_log = log2(genes_needed_data$quant)
 
-genes_needed_data_plot = ggplot(genes_needed_data, aes(x=condition, y=quant_log, color=condition)) +
-  geom_boxplot(outlier.size = 0, size=0.1) +
-  geom_point(position=position_jitterdodge(0.1), size=0.1, alpha=0.6)+
-  scale_x_discrete(labels=c('Ep', 'GC', 'MZ', 'T cell')) + 
-  scale_color_manual(values = c("#E54D37", "#5CBED3", "#06A088", "#3C5587")) +
-  ylab("Protein Abun (log2)") +
-  xlab("Region") +
+calculate_cv = function(ptm_report, method, gradient, num){
+  ptm_report_num = ptm_report %>%
+    filter(!is.na(Quantity)) %>%
+    group_by(PrecursorID) %>%
+    summarise(n=n())%>%
+    ungroup()%>%
+    filter(n>num)
+  ptm_report_out = ptm_report %>%
+    filter(!is.na(Quantity)) %>%
+    filter(PrecursorID %in% ptm_report_num$PrecursorID) %>%
+    group_by(PrecursorID) %>%
+    summarise_at(vars(Quantity), list(sd=sd, mean=mean))
+  ptm_report_out$cv = (ptm_report_out$sd/ptm_report_out$mean) * 100
+  ptm_report_out$method = method
+  ptm_report_out$gradient = gradient
+  return(ptm_report_out)
+}
+
+spec_7_min_report_ptm = get_spectro_pass(spec_7_min_report)
+phospho_7min_pr_ptm = get_diann_pass(phospho_7min_pr)
+spec_10_min_report_ptm = get_spectro_pass(spec_10_min_report)
+phospho_10min_pr_ptm = get_diann_pass(phospho_10min_pr)
+spec_15_min_report_ptm = get_spectro_pass(spec_15_min_report)
+phospho_15min_pr_ptm = get_diann_pass(phospho_15min_pr)
+spec_21_min_report_ptm = get_spectro_pass(spec_21_min_report)
+phospho_21min_pr_ptm = get_diann_pass(phospho_21min_pr)
+spec_30_min_report_ptm = get_spectro_pass(spec_30_min_report)
+phospho_30min_pr_ptm = get_diann_pass(phospho_30min_pr)
+spec_60_min_report_ptm = get_spectro_pass(spec_60_min_report)
+phospho_60min_pr_ptm = get_diann_pass(phospho_60min_pr)
+
+cv_num = 1
+phospho_7min_pr_cv = calculate_cv(phospho_7min_pr_ptm, "FragPipe", "7min", cv_num)
+spec_7_min_report_cv = calculate_cv(spec_7_min_report_ptm, "Spectronaut", "7min", cv_num)
+phospho_10min_pr_cv = calculate_cv(phospho_10min_pr_ptm, "FragPipe", "10min", cv_num)
+spec_10_min_report_cv = calculate_cv(spec_10_min_report_ptm, "Spectronaut", "10min", cv_num)
+phospho_15min_pr_cv = calculate_cv(phospho_15min_pr_ptm, "FragPipe", "15min", cv_num)
+spec_15_min_report_cv = calculate_cv(spec_15_min_report_ptm, "Spectronaut", "15min", cv_num)
+phospho_21min_pr_cv = calculate_cv(phospho_21min_pr_ptm, "FragPipe", "21min", cv_num)
+spec_21_min_report_cv = calculate_cv(spec_21_min_report_ptm, "Spectronaut", "21min", cv_num)
+phospho_30min_pr_cv = calculate_cv(phospho_30min_pr_ptm, "FragPipe", "30min", cv_num)
+spec_30_min_report_cv = calculate_cv(spec_30_min_report_ptm, "Spectronaut", "30min", cv_num)
+phospho_60min_pr_cv = calculate_cv(phospho_60min_pr_ptm, "FragPipe", "60min", cv_num)
+spec_60_min_report_cv = calculate_cv(spec_60_min_report_ptm, "Spectronaut", "60min", cv_num)
+
+cv_plot_data = phospho_7min_pr_cv %>%
+  bind_rows(spec_7_min_report_cv) %>%
+  bind_rows(phospho_10min_pr_cv) %>%
+  bind_rows(spec_10_min_report_cv) %>%
+  bind_rows(phospho_15min_pr_cv) %>%
+  bind_rows(spec_15_min_report_cv) %>%
+  bind_rows(phospho_21min_pr_cv) %>%
+  bind_rows(spec_21_min_report_cv) %>%
+  bind_rows(phospho_30min_pr_cv) %>%
+  bind_rows(spec_30_min_report_cv) %>%
+  bind_rows(phospho_60min_pr_cv) %>%
+  bind_rows(spec_60_min_report_cv)
+
+cv_plot_data$gradient <- factor(cv_plot_data$gradient , levels=c("7min", "10min", "15min", "21min", "30min", "60min"))
+cv_plot = ggplot(cv_plot_data, aes(x= gradient, y=cv, fill=method)) + 
+  geom_boxplot(size=0.1, width=0.5, alpha=0.9, position = position_dodge(0.9), outliers = F) +
+  scale_fill_manual(values = c("#1F77B4", "#FF7F0E")) +
+  ylab("Coefficient Variation (%)") +
+  xlab("Gradient") +
   theme_light() +
   theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
         axis.text.y = element_text(size = 5),
         axis.title = element_text(size = 5),
-        panel.grid.major = element_blank(),
-        panel.border = element_rect(colour = "black", size = 0.5),
+        panel.border = element_blank(), panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
-        legend.position = "none") +
-  theme(strip.text = element_text(size = 5, color = "black", margin = margin(b=1)),
-        strip.background = element_blank())+
-  facet_wrap(~ V1, ncol=1)
-genes_needed_data_plot
-ggsave("./figures/gene_dis.pdf", genes_needed_data_plot, width=1.2, height = 3, units = c("in"), dpi=400)
-
-
-# Volcano plot
-fig4_lib_de_table = fread("./lowInputData/Direct_lib_result/fragpipe_analyst/DE_results.csv")
-fig4_lib_de_table_tc_mz = fig4_lib_de_table %>%
-  select(`Gene Name`, `T_cell_vs_mantle_zone_log2 fold change`, `T_cell_vs_mantle_zone_p.adj`)
-colnames(fig4_lib_de_table_tc_mz) = c("gene", "fold_change", "p_adj")
-fig4_lib_de_table_tc_mz$label_name = ifelse((abs(fig4_lib_de_table_tc_mz$fold_change)>=1.5 & -log10(fig4_lib_de_table_tc_mz$p_adj) >20), fig4_lib_de_table_tc_mz$gene, NA)
-fig4_lib_de_table_tc_mz$sig = ifelse((abs(fig4_lib_de_table_tc_mz$fold_change)>=0.6 & fig4_lib_de_table_tc_mz$p_adj <0.05), "sig", "nsg")
-tc_mz_volcano = ggplot(fig4_lib_de_table_tc_mz, aes(x=fold_change, y=-log10(p_adj), color=sig)) +
-  geom_point(size=0.2, alpha=0.8) +
-  scale_color_manual(values=c("#999999", "black")) +
-  ylab("Adjusted P-value (-log10)") +
-  xlab("log2 Fold Change") +
-  geom_vline(xintercept = c(-0.6, 0.6), col = "gray", linetype = 'dashed') +
-  geom_hline(yintercept = -log10(0.05), col = "gray", linetype = 'dashed') + 
-  geom_text_repel(label = fig4_lib_de_table_tc_mz$label_name, max.overlaps = Inf, color="black", size=1.5, segment.color = 'transparent', box.padding = 0.05) +
+        legend.position = "top",
+        legend.title = element_text(size=5, face="bold"),
+        legend.text = element_text(size = 5),
+        legend.key.size = unit(0.2, "cm"))
+cv_plot
+cv_plot_out = ggplot(cv_plot_data, aes(x= gradient, y=cv, fill=method)) + 
+  geom_boxplot(size=0.1, width=0.5, alpha=0.9, position = position_dodge(0.9), outlier.size = 0.1) +
+  scale_fill_manual(values = c("#1F77B4", "#FF7F0E")) +
+  ylab("Coefficient Variation (%)") +
+  xlab("Gradient") +
   theme_light() +
-  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 6),
-        axis.text.y = element_text(size = 6),
-        axis.title = element_text(size = 6),
-        panel.grid.major = element_blank(),
-        panel.border = element_rect(colour = "black", size = 0.5),
+  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
+        axis.text.y = element_text(size = 5),
+        axis.title = element_text(size = 5),
+        panel.border = element_blank(), panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
-        legend.position = "none")
-tc_mz_volcano
-ggsave("./figures/tc_mz_volcano.pdf", tc_mz_volcano, width=5.5, height = 3.5, units = c("in"), dpi=400)
+        legend.position = "top",
+        legend.title = element_text(size=5, face="bold"),
+        legend.text = element_text(size = 5),
+        legend.key.size = unit(0.2, "cm"))
+cv_plot_all= ggarrange(cv_plot_out, cv_plot,
+                       ncol = 1, nrow = 2, align="v", labels = c("a", "b"), font.label = list(size = 10), 
+                       common.legend = T, legend = "top")
+ggsave("./supplements/FigureS8.pdf", cv_plot_all, width=3, height = 3, units = c("in"), dpi=400)
 
-# gene expression detail region USED IMPUTED DATA
-fig4_lib_imputed_table = fread("./lowInputData/Direct_lib_result/fragpipe_analyst/Imputed_matrix.csv")
+### We tried to compare the site level, but lots of things are different. Hard to compare. e.x: Protein inference; localization scoring
 
-fig4_lib_exp_one_class_detail = fread("./lowInputData/Direct_lib_result/experiment_annotation_detail.tsv") %>%
-  select(sample_name, condition) %>%
-  filter(condition %in% c("grey_zone", "dark_zone", "light_zone"))
-fig4_lib_exp_one_class_detail$sample_name = paste(fig4_lib_exp_one_class_detail$sample_name, "_imputed_intensity", sep = "")
-genes_needed_detail = c("MKI67", "TOP2A", "CD3E", "RPL23")
-genes_needed_data_deatil = get_expre_one_gene_imputed(fig4_lib_imputed_table, fig4_lib_exp_one_class_detail, genes_needed_detail)
-genes_needed_data_deatil$quant_log = log2(genes_needed_data_deatil$quant)
 
-genes_needed_data_detail_plot = ggplot(genes_needed_data_deatil, aes(x=condition, y=quant_log, color=quant_log)) +
-  geom_boxplot(outlier.size = 0, size=0.1) +
-  geom_point(position=position_jitterdodge(0.1), size=0.1, alpha=0.6)+
-  scale_x_discrete(labels=c('dark', 'grey', 'light')) + 
-  scale_color_gradient(low="blue", high="red") +
-  ylab("Imputed\nProtein Abun (log2)") +
-  xlab("Region") +
-  theme_light() +
-  theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 4),
-        axis.text.y = element_text(size = 4),
-        axis.title = element_text(size = 4),
-        panel.grid.major = element_blank(),
-        panel.border = element_rect(colour = "black", size = 0.5),
-        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
-        legend.position = "none") +
-  theme(strip.text = element_text(size = 5, color = "black", margin = margin(b=1)),
-        strip.background = element_blank())+
-  facet_wrap(~ ProteinID, nrow=1)
-genes_needed_data_detail_plot
-ggsave("./figures/detail_gene_dis.pdf", genes_needed_data_detail_plot, width=3.5, height = 1, units = c("in"), dpi=400)
+
+
+
 
