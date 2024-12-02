@@ -198,16 +198,16 @@ breast_cancer_num_pro_miss_plot = ggplot(breast_cancer_num_pro_miss, aes(x=metho
   ylab("# Proteins (x1000)") +
   xlab("Method") +
   theme_light() +
-  labs(fill= "Non-missing\nvalue filter") +
+  labs(fill= "Completeness") +
   theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 5),
         axis.text.y = element_text(size = 5),
         axis.title = element_text(size = 5),
         panel.border = element_blank(), panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(), axis.line = element_line(colour = "black", size = 0.05),
-        legend.position = "right",
+        legend.position = "bottom",
         legend.title = element_text(size=5, face="bold"),
         legend.text = element_text(size = 5),
-        legend.key.size = unit(0.2, "cm"),
+        legend.key.size = unit(0.1, "cm"),
         strip.background =element_rect(fill="white"),
         strip.text = element_text(size=6, colour = 'black')) +
   facet_grid(~type, scales="free", space = "free")
@@ -215,5 +215,5 @@ breast_cancer_num_pro_miss_plot
 
 breast_cancer_plot_all= ggarrange(breast_cancer_pg_dis_plot, breast_cancer_num_pro_miss_plot,
                        ncol = 1, nrow = 2, align="v", labels = c("a", "b"), font.label = list(size = 10))
-ggsave("./figures/Figure2.pdf", breast_cancer_plot_all, width=4, height = 3, units = c("in"), dpi=400)
+ggsave("./figures/Figure2.pdf", breast_cancer_plot_all, width=88, height = 100, units = c("mm"), dpi=400)
 

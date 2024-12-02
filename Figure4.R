@@ -198,7 +198,8 @@ plasma_feature_plot = ggplot(feature_data_all, aes(x=condition, y=quant_log, col
   geom_point(position=position_jitterdodge(0.1), size=0.1, alpha=0.6)+
   scale_x_discrete(labels=c('NSCLC', 'Control')) + 
   scale_color_manual(values = c("#E54D37", "#5CBED3")) +
-  stat_compare_means(label = "p.signif", method = "t.test", label.x = 1.5 , label.y = 13, size=2)+
+  stat_compare_means(aes(label = paste0('p = ', after_stat(p.format), '\n',
+                                    after_stat(p.signif))), method = "t.test", label.x = 1.5 , label.y = 13, size=1.8)+
   ylab("Protein Abundance (log2)") +
   xlab("Group") +
   theme_light() +

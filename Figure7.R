@@ -1,3 +1,9 @@
+#install.packages('reticulate')
+#reticulate::install_miniconda()
+#reticulate::conda_install('r-reticulate', 'python-kaleido')
+#reticulate::conda_install('r-reticulate', 'plotly', channel = 'plotly')
+#reticulate::use_miniconda('r-reticulate')
+
 library(tidyverse)
 library(data.table)
 library(ComplexHeatmap)
@@ -5,6 +11,7 @@ library(psych)
 library(plotly)
 library(eulerr)
 library(ggrepel)
+library(reticulate)
 
 read_maxlfq = function(file_path){
   out_data = fread(file_path) %>%
@@ -281,7 +288,8 @@ plot_pca = function(imputed_data, annotation_data, padding){
                         yaxis = list(title = list(text=paste('PC2=', summary(pc_comp)$importance[2,][2][[1]]*100, "%", sep=""), font=list(size=15)), 
                                      tickfont = list(size = 6)),
                         zaxis = list(title = list(text=paste('PC3=', summary(pc_comp)$importance[2,][3][[1]]*100, "%", sep=""), font=list(size=15)), 
-                                     tickfont = list(size = 6))))
+                                     tickfont = list(size = 6)),
+                        camera = list(eye = list(x = -1, y = -2.4, z = 1.5))))
   
   return(fig)
 }
@@ -289,6 +297,7 @@ fig4_lib_exp_over_anno = fread("./lowInputData/Direct_lib_result/experiment_anno
 
 fig3_lib_imputed_table = fread("./lowInputData/Tonsil_lib_result/fragpipe_analyst/Imputed_matrix.csv")
 fig3_lib_pca = plot_pca(fig3_lib_imputed_table, fig4_lib_exp_over_anno, "30")
+fig3_lib_pca
 
 ### Imputed_matrix.csv download from FragPipe-analysist.
 fig4_lib_imputed_table = fread("./lowInputData/Direct_lib_result/fragpipe_analyst/Imputed_matrix.csv")
@@ -299,6 +308,10 @@ fig4_lib_imputed_table_passed = fig4_lib_imputed_table %>%
 
 fig4_lib_pca = plot_pca(fig4_lib_imputed_table_passed, fig4_lib_exp_over_anno, "")
 fig4_lib_pca # PCA plot save manually since need to modify 3D position.
+reticulate::import("sys")
+reticulate::import("plotly")
+save_image(fig4_lib_pca, "./figures/pca.pdf", scale=2)
+
 
 # gene expression non_imputed
 get_expre_one_gene = function(report_data, class_file, gene_name_list){
